@@ -4,7 +4,7 @@ from bson import ObjectId
 
 from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InputRichMessage
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -22,7 +22,14 @@ from app.keyboards import (
     confirm_publish,
     published_menu,
 )
-from app.utils import build_caption, parse_table_input, human_time, esc
+from app.utils import (
+    build_caption,
+    build_rich_html,
+    parse_table_input,
+    parse_button_input,
+    human_time,
+    esc,
+)
 
 router = Router()
 
@@ -65,10 +72,11 @@ def builder_text(draft):
     channel = esc(draft.get("channel_title") or "Not selected")
     auto_delete = esc(human_time(draft.get("auto_delete_seconds")))
     silent = "ON" if draft.get("silent") else "OFF"
+    rich_mode = "ON" if draft.get("rich_mode") else "OFF"
 
     return f"""🛠 <b>Advanced Post Builder</b>
 
-Create your post step by step. Simple instructions are available for every option.
+Create your post step by step.
 
 📝 <b>Caption:</b> {caption}
 🖼 <b>Media:</b> {media}
@@ -77,8 +85,9 @@ Create your post step by step. Simple instructions are available for every optio
 📺 <b>Channel:</b> {channel}
 ⏱ <b>Auto Delete:</b> {auto_delete}
 🔕 <b>Silent:</b> {silent}
+✨ <b>Rich Mode:</b> {rich_mode}
 
-<i>Tip: Caption -> Media/Buttons/Table -> Channel -> Preview -> Publish</i>"""
+<i>Rich Mode sends a real Rich Message with a styled table and colored in-message buttons.</i>"""
 
 
 async def show_builder(callback_or_message, user_id):
@@ -104,7 +113,7 @@ async def show_builder(callback_or_message, user_id):
 HELP_TEXT = """❓ <b>How to Use</b>
 
 <b>1. Add a Channel</b>
-Make the bot an administrator in your channel and enable the Post Messages permission.
+Make the bot an administrator in your channel and enable Post Messages permission.
 Then open <b>My Channels -> Add Channel</b> and send <code>@channelusername</code>, or forward any message from the channel.
 
 <b>2. Caption</b>
@@ -112,19 +121,24 @@ Telegram HTML is supported:
 <code>&lt;b&gt;Bold&lt;/b&gt;</code>
 <code>&lt;i&gt;Italic&lt;/i&gt;</code>
 <code>&lt;u&gt;Underline&lt;/u&gt;</code>
-<code>&lt;s&gt;Strike&lt;/s&gt;</code>
-<code>&lt;code&gt;Code&lt;/code&gt;</code>
 <code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>
 
 <b>3. Buttons</b>
 Send each button on a separate line:
-<code>Button Text | https://example.com</code>
+
+<code>Button Text | https://example.com | style</code>
+
+Available styles:
+<code>primary</code> — blue
+<code>success</code> — green
+<code>danger</code> — red
 
 Example:
-<code>Visit Website | https://example.com</code>
-<code>Join Channel | https://t.me/telegram</code>
+<code>Visit Website | https://example.com | primary</code>
+<code>Join Channel | https://t.me/telegram | success</code>
+<code>Important Notice | https://example.com | danger</code>
 
-Then choose whether a row should contain 1, 2, or 3 buttons.
+If you do not enter a style, <code>primary</code> will be used.
 
 <b>4. Table</b>
 The first line is the header. Other lines are rows.
@@ -135,8 +149,9 @@ Example:
 <code>Apple | $1.00</code>
 <code>Mango | $1.20</code>
 
-<b>5. Auto Delete</b>
-Choose Permanent, 1 minute, 10 minutes, 1 hour, or 24 hours.
+<b>5. Rich Mode</b>
+Turn Rich Mode ON to publish a Rich Message.
+It supports a real styled table and colored buttons inside the message.
 
 <b>6. Publish</b>
 Select a channel, check Preview, then tap Publish Now."""
@@ -160,11 +175,11 @@ async def start_command(message: Message):
     await message.answer(
         """👋 <b>Welcome to Advanced Post Creator Bot!</b>
 
-Use this bot to create professional posts for your Telegram channels.
+Use this bot to create professional Rich posts for your Telegram channels.
 
 🟢 <b>Create Post</b> — Create a new post
-📺 <b>My Channels</b> — Add or select your channels
-💾 <b>Saved Posts</b> — Reuse your saved posts
+📺 <b>My Channels</b> — Add or select channels
+💾 <b>Saved Posts</b> — Reuse saved posts
 ❓ <b>Help</b> — View the full guide""",
         reply_markup=main_menu(),
     )
@@ -282,7 +297,7 @@ Send your channel username:
 
 For a private channel, forward any message from that channel to this bot.
 
-⚠️ First, add the bot as an administrator in the channel and enable the Post Messages permission.""",
+⚠️ First, add the bot as an administrator in the channel and enable Post Messages permission.""",
         reply_markup=back_to_builder(),
     )
     await callback.answer()
@@ -332,8 +347,6 @@ Telegram HTML is supported:
 <code>&lt;b&gt;Bold&lt;/b&gt;</code>
 <code>&lt;i&gt;Italic&lt;/i&gt;</code>
 <code>&lt;u&gt;Underline&lt;/u&gt;</code>
-<code>&lt;s&gt;Strike&lt;/s&gt;</code>
-<code>&lt;code&gt;Code&lt;/code&gt;</code>
 <code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>
 
 Send your caption now.""",
@@ -379,13 +392,19 @@ async def edit_buttons_callback(callback: CallbackQuery):
 
 Send each button on a separate line:
 
-<code>Button Text | https://example.com</code>
+<code>Button Text | https://example.com | style</code>
+
+Styles:
+<code>primary</code> — blue
+<code>success</code> — green
+<code>danger</code> — red
 
 Example:
-<code>Visit Website | https://example.com</code>
-<code>Join Channel | https://t.me/telegram</code>
+<code>Visit Website | https://example.com | primary</code>
+<code>Join Channel | https://t.me/telegram | success</code>
+<code>Important Notice | https://example.com | danger</code>
 
-The URL must start with http:// or https://.""",
+If style is not entered, <code>primary</code> is used.""",
         reply_markup=back_to_builder(),
     )
     await callback.answer()
@@ -411,7 +430,7 @@ async def edit_table_callback(callback: CallbackQuery):
     await callback.message.edit_text(
         """📊 <b>Create a Table</b>
 
-The first line is the header. The remaining lines are rows.
+The first line is the header. Other lines are rows.
 Separate columns using <code>|</code>.
 
 Example:
@@ -419,7 +438,7 @@ Example:
 <code>Apple | $1.00</code>
 <code>Mango | $1.20</code>
 
-The table will appear in a clean monospace format.""",
+With Rich Mode ON, this becomes a real styled table.""",
         reply_markup=back_to_builder(),
     )
     await callback.answer()
@@ -481,6 +500,19 @@ async def toggle_silent_callback(callback: CallbackQuery):
     await callback.answer("Silent mode updated ✅")
 
 
+@router.callback_query(F.data == "edit:rich")
+async def toggle_rich_callback(callback: CallbackQuery):
+    draft = await get_draft(callback.from_user.id)
+
+    await save_draft(
+        callback.from_user.id,
+        {"rich_mode": not draft.get("rich_mode", False)},
+    )
+
+    await show_builder(callback, callback.from_user.id)
+    await callback.answer("Rich Mode updated ✅")
+
+
 @router.callback_query(F.data == "post:reset")
 async def reset_post_callback(callback: CallbackQuery):
     draft = db.empty_draft()
@@ -515,6 +547,29 @@ def post_keyboard(draft):
 @router.callback_query(F.data == "post:preview")
 async def preview_callback(callback: CallbackQuery):
     draft = await get_draft(callback.from_user.id)
+
+    if draft.get("rich_mode"):
+        rich_html = build_rich_html(draft)
+
+        if not rich_html:
+            await callback.answer(
+                "Add a caption, table, or buttons first.",
+                show_alert=True,
+            )
+            return
+
+        try:
+            await callback.message.answer_rich(
+                InputRichMessage(html=rich_html)
+            )
+            await callback.answer("Rich preview sent below ✅")
+        except TelegramBadRequest as error:
+            await callback.answer(
+                f"Rich preview failed: {error.message}",
+                show_alert=True,
+            )
+        return
+
     caption = build_caption(draft) or "<i>(No caption)</i>"
     keyboard = post_keyboard(draft)
 
@@ -629,6 +684,7 @@ async def publish_callback(callback: CallbackQuery):
 
 📺 Channel: <b>{esc(channel_title)}</b>
 ⏱ Auto Delete: <b>{esc(auto_delete)}</b>
+✨ Rich Mode: <b>{'ON' if draft.get('rich_mode') else 'OFF'}</b>
 
 Do you want to publish this post?""",
         reply_markup=confirm_publish(channel_title, auto_delete),
@@ -639,23 +695,28 @@ Do you want to publish this post?""",
 @router.callback_query(F.data == "post:publish_confirm")
 async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
     draft = await get_draft(callback.from_user.id)
-    caption = build_caption(draft)
-    keyboard = post_keyboard(draft)
 
     try:
-        if draft.get("media_file_id"):
+        if draft.get("rich_mode"):
+            rich_html = build_rich_html(draft)
+            sent_message = await bot.send_rich_message(
+                draft["channel_id"],
+                rich_message=InputRichMessage(html=rich_html),
+                disable_notification=draft.get("silent", False),
+            )
+        elif draft.get("media_file_id"):
             sent_message = await send_media_to_chat(
                 bot,
                 draft["channel_id"],
                 draft,
-                caption,
-                keyboard,
+                build_caption(draft),
+                post_keyboard(draft),
             )
         else:
             sent_message = await bot.send_message(
                 draft["channel_id"],
-                caption,
-                reply_markup=keyboard,
+                build_caption(draft),
+                reply_markup=post_keyboard(draft),
                 disable_notification=draft.get("silent", False),
             )
     except Exception as error:
@@ -681,7 +742,8 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
         f"""✅ <b>Post published successfully!</b>
 
 📺 Channel: <b>{esc(channel_title)}</b>
-⏱ Auto Delete: <b>{esc(human_time(draft.get('auto_delete_seconds')))}</b>""",
+⏱ Auto Delete: <b>{esc(human_time(draft.get('auto_delete_seconds')))}</b>
+✨ Rich Mode: <b>{'ON' if draft.get('rich_mode') else 'OFF'}</b>""",
         reply_markup=published_menu(),
     )
     await callback.answer("Published ✅")
@@ -881,23 +943,16 @@ Add the bot as an administrator first, then try again."""
         return
 
     if waiting_for == "buttons":
-        buttons = []
-
-        for line in (message.text or "").splitlines():
-            if "|" not in line:
-                continue
-
-            label, url = [part.strip() for part in line.split("|", 1)]
-
-            if label and url.startswith(("http://", "https://")):
-                buttons.append({"text": label, "url": url})
+        buttons = parse_button_input(message.text)
 
         if not buttons:
             await message.reply(
                 """❌ Invalid format.
 
 Use this format:
-<code>Button Text | https://example.com</code>"""
+<code>Button Text | https://example.com | style</code>
+
+Styles: primary, success, danger"""
             )
             return
 

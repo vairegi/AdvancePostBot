@@ -7,7 +7,7 @@ def esc(text):
     return html.escape(text or "", quote=False)
 
 
-def render_table(table):
+def render_plain_table(table):
     headers = table.get("headers") or []
     rows = table.get("rows") or []
     matrix = ([headers] + rows) if headers else rows
@@ -39,6 +39,31 @@ def render_table(table):
     return "<pre>" + esc(table_text) + "</pre>"
 
 
+def render_rich_table(table):
+    headers = table.get("headers") or []
+    rows = table.get("rows") or []
+
+    if not headers and not rows:
+        return ""
+
+    parts = ["<table>"]
+
+    if headers:
+        parts.append("<tr>")
+        for header in headers:
+            parts.append("<th>" + esc(str(header)) + "</th>")
+        parts.append("</tr>")
+
+    for row in rows:
+        parts.append("<tr>")
+        for cell in row:
+            parts.append("<td>" + esc(str(cell)) + "</td>")
+        parts.append("</tr>")
+
+    parts.append("</table>")
+    return "".join(parts)
+
+
 def build_caption(draft):
     parts = []
 
@@ -46,9 +71,48 @@ def build_caption(draft):
         parts.append(draft["text"])
 
     if draft.get("table"):
-        rendered_table = render_table(draft["table"])
+        rendered_table = render_plain_table(draft["table"])
         if rendered_table:
             parts.append(rendered_table)
+
+    return NEWLINE.join(part for part in parts if part)
+
+
+def build_rich_html(draft):
+    parts = []
+
+    if draft.get("text"):
+        parts.append(draft["text"])
+
+    if draft.get("table"):
+        rich_table = render_rich_table(draft["table"])
+        if rich_table:
+            parts.append(rich_table)
+
+    buttons = draft.get("buttons") or []
+
+    if buttons:
+        button_tags = []
+
+        for button in buttons:
+            style = button.get("style") or "primary"
+
+            if style not in ("primary", "success", "danger"):
+                style = "primary"
+
+            button_tags.append(
+                '<tg-button type="url" url="'
+                + esc(button["url"])
+                + '" style="'
+                + style
+                + '">'
+                + esc(button["text"])
+                + "</tg-button>"
+            )
+
+        parts.append(
+            "<tg-button-row>" + "".join(button_tags) + "</tg-button-row>"
+        )
 
     return NEWLINE.join(part for part in parts if part)
 
@@ -77,6 +141,37 @@ def parse_table_input(raw_text):
         "headers": parsed_rows[0],
         "rows": parsed_rows[1:],
     }
+
+
+def parse_button_input(raw_text):
+    buttons = []
+
+    for line in (raw_text or "").splitlines():
+        if "|" not in line:
+            continue
+
+        parts = [part.strip() for part in line.split("|")]
+
+        if len(parts) < 2:
+            continue
+
+        label = parts[0]
+        url = parts[1]
+        style = parts[2].lower() if len(parts) >= 3 else "primary"
+
+        if style not in ("primary", "success", "danger"):
+            style = "primary"
+
+        if label and url.startswith(("http://", "https://")):
+            buttons.append(
+                {
+                    "text": label,
+                    "url": url,
+                    "style": style,
+                }
+            )
+
+    return buttons
 
 
 def human_time(seconds):
