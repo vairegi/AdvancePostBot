@@ -39,9 +39,20 @@ async def get_draft(user_id, create=True):
 
 
 async def save_draft(user_id, update):
+    set_update = dict(update)
+    unset_update = {}
+
+    if "waiting_for" not in set_update:
+        unset_update["waiting_for"] = ""
+
+    update_operation = {"$set": set_update}
+
+    if unset_update:
+        update_operation["$unset"] = unset_update
+
     await db.drafts.update_one(
         {"user_id": user_id},
-        {"$set": update, "$unset": {"waiting_for": ""}},
+        update_operation,
         upsert=True,
     )
 
