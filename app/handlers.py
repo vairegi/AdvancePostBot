@@ -5,7 +5,6 @@ from bson import ObjectId
 from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery
-from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -48,30 +47,27 @@ async def save_draft(user_id, update):
 
 
 def builder_text(draft):
-    return (
-        "🛠 <b>Advanced Post Builder</b>
+    caption = "Added" if draft.get("text") else "Not added"
+    media = esc(draft.get("media_type") or "No media")
+    buttons = len(draft.get("buttons") or [])
+    table = "Yes" if draft.get("table") else "No"
+    channel = esc(draft.get("channel_title") or "Not selected")
+    auto_delete = esc(human_time(draft.get("auto_delete_seconds")))
+    silent = "ON" if draft.get("silent") else "OFF"
 
-"
-        "अपना post step-by-step बनाइए। हर option में simple instructions मिलेंगे।
+    return f"""🛠 <b>Advanced Post Builder</b>
 
-"
-        f"📝 <b>Caption:</b> {'Added' if draft.get('text') else 'Not added'}
-"
-        f"🖼 <b>Media:</b> {esc(draft.get('media_type') or 'No media')}
-"
-        f"🔗 <b>Buttons:</b> {len(draft.get('buttons') or [])}
-"
-        f"📊 <b>Table:</b> {'Yes' if draft.get('table') else 'No'}
-"
-        f"📺 <b>Channel:</b> {esc(draft.get('channel_title') or 'Not selected')}
-"
-        f"⏱ <b>Auto Delete:</b> {esc(human_time(draft.get('auto_delete_seconds')))}
-"
-        f"🔕 <b>Silent:</b> {'ON' if draft.get('silent') else 'OFF'}
+Create your post step by step. Simple instructions are available for every option.
 
-"
-        "<i>Tip: Caption -> Media/Buttons/Table -> Channel -> Preview -> Publish</i>"
-    )
+📝 <b>Caption:</b> {caption}
+🖼 <b>Media:</b> {media}
+🔗 <b>Buttons:</b> {buttons}
+📊 <b>Table:</b> {table}
+📺 <b>Channel:</b> {channel}
+⏱ <b>Auto Delete:</b> {auto_delete}
+🔕 <b>Silent:</b> {silent}
+
+<i>Tip: Caption -> Media/Buttons/Table -> Channel -> Preview -> Publish</i>"""
 
 
 async def show_builder(callback_or_message, user_id):
@@ -94,67 +90,45 @@ async def show_builder(callback_or_message, user_id):
         await callback_or_message.answer(text, reply_markup=keyboard)
 
 
-HELP_TEXT = (
-    "❓ <b>How to Use</b>
+HELP_TEXT = """❓ <b>How to Use</b>
 
-"
-    "<b>1. Channel जोड़ें</b>
-"
-    "Bot को channel admin बनाएं और Post Messages permission दें।
-"
-    "फिर <b>My Channels → Add Channel</b> में <code>@channelusername</code> भेजें "
-    "या channel से कोई message forward करें।
+<b>1. Add a Channel</b>
+Make the bot an administrator in your channel and enable the Post Messages permission.
+Then open <b>My Channels -> Add Channel</b> and send <code>@channelusername</code>, or forward any message from the channel.
 
-"
-    "<b>2. Caption</b>
-"
-    "Telegram HTML support है:
-"
-    "<code>&lt;b&gt;Bold&lt;/b&gt;</code>, "
-    "<code>&lt;i&gt;Italic&lt;/i&gt;</code>, "
-    "<code>&lt;u&gt;Underline&lt;/u&gt;</code>, "
-    "<code>&lt;s&gt;Strike&lt;/s&gt;</code>, "
-    "<code>&lt;code&gt;Code&lt;/code&gt;</code>, "
-    '<code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>
+<b>2. Caption</b>
+Telegram HTML is supported:
+<code>&lt;b&gt;Bold&lt;/b&gt;</code>
+<code>&lt;i&gt;Italic&lt;/i&gt;</code>
+<code>&lt;u&gt;Underline&lt;/u&gt;</code>
+<code>&lt;s&gt;Strike&lt;/s&gt;</code>
+<code>&lt;code&gt;Code&lt;/code&gt;</code>
+<code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>
 
-'
-    "<b>3. Buttons</b>
-"
-    "हर button एक line में भेजें:
-"
-    "<code>Button Text | https://example.com</code>
+<b>3. Buttons</b>
+Send each button on a separate line:
+<code>Button Text | https://example.com</code>
 
-"
-    "उदाहरण:
-"
-    "<code>Visit Website | https://example.com</code>
-"
-    "<code>Join Channel | https://t.me/telegram</code>
+Example:
+<code>Visit Website | https://example.com</code>
+<code>Join Channel | https://t.me/telegram</code>
 
-"
-    "फिर 1, 2 या 3 buttons per row चुनें।
+Then choose whether a row should contain 1, 2, or 3 buttons.
 
-"
-    "<b>4. Table</b>
-"
-    "पहली line header है, बाकी lines rows हैं।
-"
-    "<code>Product | Price</code>
-"
-    "<code>Apple | ₹100</code>
-"
-    "<code>Mango | ₹120</code>
+<b>4. Table</b>
+The first line is the header. Other lines are rows.
+Separate columns using <code>|</code>.
 
-"
-    "<b>5. Auto Delete</b>
-"
-    "Permanent, 1 minute, 10 minutes, 1 hour या 24 hours चुनें।
+Example:
+<code>Product | Price</code>
+<code>Apple | $1.00</code>
+<code>Mango | $1.20</code>
 
-"
-    "<b>6. Publish</b>
-"
-    "Channel चुनें, Preview देखें, फिर Publish Now दबाएं।"
-)
+<b>5. Auto Delete</b>
+Choose Permanent, 1 minute, 10 minutes, 1 hour, or 24 hours.
+
+<b>6. Publish</b>
+Select a channel, check Preview, then tap Publish Now."""
 
 
 @router.message(CommandStart())
@@ -173,19 +147,14 @@ async def start_command(message: Message):
     )
 
     await message.answer(
-        "👋 <b>Welcome to Advanced Post Creator Bot!</b>
+        """👋 <b>Welcome to Advanced Post Creator Bot!</b>
 
-"
-        "इस bot से आप अपने Telegram channels के लिए professional posts बना सकते हैं।
+Use this bot to create professional posts for your Telegram channels.
 
-"
-        "🟢 <b>Create Post</b> — नया post बनाएं
-"
-        "📺 <b>My Channels</b> — अपने channels जोड़ें
-"
-        "💾 <b>Saved Posts</b> — पुराने posts reuse करें
-"
-        "❓ <b>Help</b> — full guide देखें",
+🟢 <b>Create Post</b> — Create a new post
+📺 <b>My Channels</b> — Add or select your channels
+💾 <b>Saved Posts</b> — Reuse your saved posts
+❓ <b>Help</b> — View the full guide""",
         reply_markup=main_menu(),
     )
 
@@ -198,9 +167,9 @@ async def help_command(message: Message):
 @router.callback_query(F.data == "menu:main")
 async def main_menu_callback(callback: CallbackQuery):
     await callback.message.edit_text(
-        "👋 <b>Main Menu</b>
+        """👋 <b>Main Menu</b>
 
-नीचे से option चुनें:",
+Choose an option below:""",
         reply_markup=main_menu(),
     )
     await callback.answer()
@@ -228,9 +197,9 @@ async def channels_callback(callback: CallbackQuery):
     ).to_list(100)
 
     await callback.message.edit_text(
-        "📺 <b>My Channels</b>
+        """📺 <b>My Channels</b>
 
-Channel चुनें या नया channel add करें।",
+Select a channel or add a new one.""",
         reply_markup=channels_menu(channels),
     )
     await callback.answer()
@@ -244,19 +213,18 @@ async def saved_posts_callback(callback: CallbackQuery):
 
     if not posts:
         await callback.message.edit_text(
-            "💾 <b>Saved Posts</b>
+            """💾 <b>Saved Posts</b>
 
-अभी कोई saved post नहीं है।
+You have no saved posts yet.
 
-"
-            "Post Builder में <b>💾 Save Post</b> दबाएं।",
+Open the Post Builder and tap <b>💾 Save Post</b>.""",
             reply_markup=back_to_builder(),
         )
     else:
         await callback.message.edit_text(
-            "💾 <b>Saved Posts</b>
+            """💾 <b>Saved Posts</b>
 
-Post select करें; यह builder में load हो जाएगा।",
+Select a post to load it into the Post Builder.""",
             reply_markup=saved_posts_menu(posts),
         )
 
@@ -275,7 +243,7 @@ async def load_post_callback(callback: CallbackQuery):
     )
 
     if not post:
-        await callback.answer("Post नहीं मिला।", show_alert=True)
+        await callback.answer("Post not found.", show_alert=True)
         return
 
     post["user_id"] = callback.from_user.id
@@ -296,13 +264,14 @@ async def add_channel_callback(callback: CallbackQuery):
     await save_draft(callback.from_user.id, {"waiting_for": "channel_add"})
 
     await callback.message.edit_text(
-        "➕ <b>Add Channel</b>
+        """➕ <b>Add Channel</b>
 
-"
-        "<code>@channelusername</code> भेजें या private channel से कोई message forward करें।
+Send your channel username:
+<code>@channelusername</code>
 
-"
-        "⚠️ Bot को पहले channel में Admin बनाएं और Post Messages permission दें।",
+For a private channel, forward any message from that channel to this bot.
+
+⚠️ First, add the bot as an administrator in the channel and enable the Post Messages permission.""",
         reply_markup=back_to_builder(),
     )
     await callback.answer()
@@ -325,7 +294,7 @@ async def pick_channel_callback(callback: CallbackQuery):
     )
 
     if not channel:
-        await callback.answer("Channel नहीं मिला।", show_alert=True)
+        await callback.answer("Channel not found.", show_alert=True)
         return
 
     await save_draft(
@@ -345,18 +314,18 @@ async def edit_text_callback(callback: CallbackQuery):
     await save_draft(callback.from_user.id, {"waiting_for": "text"})
 
     await callback.message.edit_text(
-        "📝 <b>Caption / Text भेजें</b>
+        """📝 <b>Send Caption / Text</b>
 
-"
-        "Telegram HTML support है:
-"
-        "<code>&lt;b&gt;Bold&lt;/b&gt;</code>
-"
-        "<code>&lt;i&gt;Italic&lt;/i&gt;</code>
-"
-        "<code>&lt;u&gt;Underline&lt;/u&gt;</code>
-"
-        '<code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>',
+Telegram HTML is supported:
+
+<code>&lt;b&gt;Bold&lt;/b&gt;</code>
+<code>&lt;i&gt;Italic&lt;/i&gt;</code>
+<code>&lt;u&gt;Underline&lt;/u&gt;</code>
+<code>&lt;s&gt;Strike&lt;/s&gt;</code>
+<code>&lt;code&gt;Code&lt;/code&gt;</code>
+<code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>
+
+Send your caption now.""",
         reply_markup=back_to_builder(),
     )
     await callback.answer()
@@ -368,10 +337,9 @@ async def edit_media_callback(callback: CallbackQuery):
     await save_draft(callback.from_user.id, {"waiting_for": "media"})
 
     await callback.message.edit_text(
-        "🖼 <b>Media भेजें</b>
+        """🖼 <b>Send Media</b>
 
-"
-        "Photo, Video, Audio, Document या Animation भेजें।",
+Send a photo, video, audio file, document, or animation.""",
         reply_markup=media_menu(bool(draft.get("media_file_id"))),
     )
     await callback.answer()
@@ -396,19 +364,17 @@ async def edit_buttons_callback(callback: CallbackQuery):
     await save_draft(callback.from_user.id, {"waiting_for": "buttons"})
 
     await callback.message.edit_text(
-        "🔗 <b>Inline Buttons जोड़ें</b>
+        """🔗 <b>Add Inline Buttons</b>
 
-"
-        "हर button एक line में भेजें:
-"
-        "<code>Button Text | https://example.com</code>
+Send each button on a separate line:
 
-"
-        "उदाहरण:
-"
-        "<code>Visit Website | https://example.com</code>
-"
-        "<code>Join Channel | https://t.me/telegram</code>",
+<code>Button Text | https://example.com</code>
+
+Example:
+<code>Visit Website | https://example.com</code>
+<code>Join Channel | https://t.me/telegram</code>
+
+The URL must start with http:// or https://.""",
         reply_markup=back_to_builder(),
     )
     await callback.answer()
@@ -432,21 +398,17 @@ async def edit_table_callback(callback: CallbackQuery):
     await save_draft(callback.from_user.id, {"waiting_for": "table"})
 
     await callback.message.edit_text(
-        "📊 <b>Table बनाएं</b>
+        """📊 <b>Create a Table</b>
 
-"
-        "पहली line header है, बाकी lines rows हैं।
-"
-        "Columns को <code>|</code> से अलग करें।
+The first line is the header. The remaining lines are rows.
+Separate columns using <code>|</code>.
 
-"
-        "उदाहरण:
-"
-        "<code>Product | Price</code>
-"
-        "<code>Apple | ₹100</code>
-"
-        "<code>Mango | ₹120</code>",
+Example:
+<code>Product | Price</code>
+<code>Apple | $1.00</code>
+<code>Mango | $1.20</code>
+
+The table will appear in a clean monospace format.""",
         reply_markup=back_to_builder(),
     )
     await callback.answer()
@@ -461,7 +423,9 @@ async def edit_channel_callback(callback: CallbackQuery):
     draft = await get_draft(callback.from_user.id)
 
     await callback.message.edit_text(
-        "📺 <b>Post Channel चुनें</b>",
+        """📺 <b>Select Post Channel</b>
+
+Choose the channel where this post will be published.""",
         reply_markup=channel_select_menu(channels, draft.get("channel_id")),
     )
     await callback.answer()
@@ -470,10 +434,11 @@ async def edit_channel_callback(callback: CallbackQuery):
 @router.callback_query(F.data == "edit:autodelete")
 async def autodelete_callback(callback: CallbackQuery):
     await callback.message.edit_text(
-        "⏱ <b>Auto Delete चुनें</b>
+        """⏱ <b>Choose Auto Delete</b>
 
-"
-        "Permanent चुनने पर post delete नहीं होगा।",
+The post will be deleted automatically after publishing.
+
+If you choose Permanent, the post will not be deleted.""",
         reply_markup=autodelete_menu(),
     )
     await callback.answer()
@@ -551,7 +516,7 @@ async def preview_callback(callback: CallbackQuery):
                 reply_markup=keyboard,
             )
 
-        await callback.answer("Preview नीचे भेजा गया ✅")
+        await callback.answer("Preview sent below ✅")
     except TelegramBadRequest as error:
         await callback.answer(
             f"Preview error: {error.message}",
@@ -605,7 +570,7 @@ async def save_post_callback(callback: CallbackQuery):
         or draft.get("table")
     ):
         await callback.answer(
-            "पहले caption, media या table add करें।",
+            "Add a caption, media, or table first.",
             show_alert=True,
         )
         return
@@ -613,13 +578,11 @@ async def save_post_callback(callback: CallbackQuery):
     await save_draft(callback.from_user.id, {"waiting_for": "save_title"})
 
     await callback.message.edit_text(
-        "💾 <b>Post का नाम भेजें</b>
+        """💾 <b>Send a Name for This Post</b>
 
-"
-        "यह नाम केवल आपके Saved Posts में दिखेगा।
+This name will appear only in your Saved Posts.
 
-"
-        "उदाहरण: <code>Daily Offer Post</code>",
+Example: <code>Daily Offer Post</code>""",
         reply_markup=back_to_builder(),
     )
     await callback.answer()
@@ -631,7 +594,7 @@ async def publish_callback(callback: CallbackQuery):
 
     if not draft.get("channel_id"):
         await callback.answer(
-            "पहले channel select करें।",
+            "Select a channel first.",
             show_alert=True,
         )
         return
@@ -642,7 +605,7 @@ async def publish_callback(callback: CallbackQuery):
         or draft.get("table")
     ):
         await callback.answer(
-            "पहले caption, media या table add करें।",
+            "Add a caption, media, or table first.",
             show_alert=True,
         )
         return
@@ -651,15 +614,12 @@ async def publish_callback(callback: CallbackQuery):
     auto_delete = human_time(draft.get("auto_delete_seconds"))
 
     await callback.message.edit_text(
-        "🚀 <b>Publish Confirmation</b>
+        f"""🚀 <b>Publish Confirmation</b>
 
-"
-        f"📺 Channel: <b>{esc(channel_title)}</b>
-"
-        f"⏱ Auto Delete: <b>{esc(auto_delete)}</b>
+📺 Channel: <b>{esc(channel_title)}</b>
+⏱ Auto Delete: <b>{esc(auto_delete)}</b>
 
-"
-        "क्या आप इस post को publish करना चाहते हैं?",
+Do you want to publish this post?""",
         reply_markup=confirm_publish(channel_title, auto_delete),
     )
     await callback.answer()
@@ -707,12 +667,10 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
     channel_title = draft.get("channel_title") or str(draft["channel_id"])
 
     await callback.message.edit_text(
-        "✅ <b>Post published successfully!</b>
+        f"""✅ <b>Post published successfully!</b>
 
-"
-        f"📺 Channel: <b>{esc(channel_title)}</b>
-"
-        f"⏱ Auto Delete: <b>{esc(human_time(draft.get('auto_delete_seconds')))}</b>",
+📺 Channel: <b>{esc(channel_title)}</b>
+⏱ Auto Delete: <b>{esc(human_time(draft.get('auto_delete_seconds')))}</b>""",
         reply_markup=published_menu(),
     )
     await callback.answer("Published ✅")
@@ -828,7 +786,7 @@ async def input_handler(message: Message, bot: Bot):
 
         if not chat_id:
             await message.reply(
-                "❌ <code>@channelusername</code> भेजें या channel से message forward करें।"
+                "❌ Send <code>@channelusername</code> or forward a message from the channel."
             )
             return
 
@@ -836,14 +794,15 @@ async def input_handler(message: Message, bot: Bot):
             member = await bot.get_chat_member(chat_id, bot.id)
 
             if member.status not in ("administrator", "creator"):
-                raise ValueError("Bot is not admin")
+                raise ValueError("Bot is not an administrator")
 
             if not getattr(member, "can_post_messages", True):
                 raise ValueError("Bot cannot post messages")
         except Exception:
             await message.reply(
-                "❌ Bot इस channel में admin नहीं है या "
-                "<b>Post Messages</b> permission नहीं है।"
+                """❌ The bot is not an administrator in this channel, or it does not have the <b>Post Messages</b> permission.
+
+Add the bot as an administrator first, then try again."""
             )
             return
 
@@ -880,7 +839,7 @@ async def input_handler(message: Message, bot: Bot):
         updated_draft = await get_draft(user_id)
 
         await message.answer(
-            "✅ Caption saved। अब अगला step चुनें।",
+            "✅ Caption saved. Choose the next step.",
             reply_markup=builder_menu(updated_draft),
         )
         return
@@ -890,7 +849,7 @@ async def input_handler(message: Message, bot: Bot):
 
         if not media:
             await message.reply(
-                "❌ Photo, Video, Audio, Document या Animation भेजें।"
+                "❌ Send a photo, video, audio file, document, or animation."
             )
             return
 
@@ -905,7 +864,7 @@ async def input_handler(message: Message, bot: Bot):
         updated_draft = await get_draft(user_id)
 
         await message.answer(
-            "✅ Media saved।",
+            "✅ Media saved.",
             reply_markup=builder_menu(updated_draft),
         )
         return
@@ -924,20 +883,19 @@ async def input_handler(message: Message, bot: Bot):
 
         if not buttons:
             await message.reply(
-                "❌ Format सही नहीं है।
+                """❌ Invalid format.
 
-"
-                "<code>Button Text | https://example.com</code>"
+Use this format:
+<code>Button Text | https://example.com</code>"""
             )
             return
 
         await save_draft(user_id, {"buttons": buttons})
 
         await message.answer(
-            f"✅ {len(buttons)} buttons added।
+            f"""✅ {len(buttons)} buttons added.
 
-"
-            "अब चुनें कि एक row में कितने buttons दिखें:",
+Now choose how many buttons should appear in one row:""",
             reply_markup=button_layout_menu(),
         )
         return
@@ -947,12 +905,11 @@ async def input_handler(message: Message, bot: Bot):
 
         if not table:
             await message.reply(
-                "❌ कम से कम 2 lines और हर line में 2 columns चाहिए।
+                """❌ You need at least 2 lines, and each line must contain at least 2 columns.
 
-"
-                "<code>Product | Price</code>
-"
-                "<code>Apple | ₹100</code>"
+Example:
+<code>Product | Price</code>
+<code>Apple | $1.00</code>"""
             )
             return
 
@@ -961,7 +918,7 @@ async def input_handler(message: Message, bot: Bot):
         updated_draft = await get_draft(user_id)
 
         await message.answer(
-            "✅ Table saved।",
+            "✅ Table saved.",
             reply_markup=builder_menu(updated_draft),
         )
         return
@@ -987,6 +944,6 @@ async def input_handler(message: Message, bot: Bot):
         return
 
     await message.answer(
-        "पहले <b>Create Post</b> पर click करें।",
+        "Tap <b>Create Post</b> first.",
         reply_markup=main_menu(),
     )
