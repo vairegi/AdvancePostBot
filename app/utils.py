@@ -108,9 +108,7 @@ def build_rich_html(draft):
         if rich_table:
             parts.append(rich_table)
 
-    button_rows = draft.get("button_rows") or []
-
-    for row in button_rows:
+    for row in draft.get("caption_button_rows") or []:
         if not row:
             continue
 
@@ -209,8 +207,8 @@ def parse_button_rows(raw_text):
 
 
 def convert_old_buttons_to_rows(draft):
-    """Support old saved posts that used a flat buttons list."""
-    if draft.get("button_rows"):
+    """Convert old flat button data to the new row-based format."""
+    if draft.get("inline_button_rows") or draft.get("caption_button_rows"):
         return draft
 
     old_buttons = draft.get("buttons") or []
@@ -229,13 +227,13 @@ def convert_old_buttons_to_rows(draft):
                 {
                     "text": button.get("text", "Button"),
                     "url": button.get("url", "https://t.me/telegram"),
-                    "color": normalize_color(button.get("style", "blue")),
+                    "color": normalize_color(button.get("color", "blue")),
                 }
             )
 
         button_rows.append(row)
 
-    draft["button_rows"] = button_rows
+    draft["inline_button_rows"] = button_rows
     return draft
 
 

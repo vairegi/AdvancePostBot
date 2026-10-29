@@ -16,7 +16,8 @@ def builder_menu(draft):
     keyboard = InlineKeyboardBuilder()
     keyboard.button(text="📝 Caption / Text", callback_data="edit:text")
     keyboard.button(text="🖼 Media", callback_data="edit:media")
-    keyboard.button(text="🔗 Buttons", callback_data="edit:buttons")
+    keyboard.button(text="🔗 Inline Buttons", callback_data="edit:ibuttons")
+    keyboard.button(text="✨ Caption Buttons", callback_data="edit:cbuttons")
     keyboard.button(text="📊 Table", callback_data="edit:table")
     keyboard.button(text="📺 Select Channel", callback_data="edit:channel")
     keyboard.button(text="⏱ Auto Delete", callback_data="edit:autodelete")
@@ -33,7 +34,7 @@ def builder_menu(draft):
     keyboard.button(text="🚀 Publish Now", callback_data="post:publish")
     keyboard.button(text="🗑 Reset Post", callback_data="post:reset")
     keyboard.button(text="🏠 Main Menu", callback_data="menu:main")
-    keyboard.adjust(2, 2, 2, 1, 1, 2, 2, 1)
+    keyboard.adjust(2, 2, 2, 1, 1, 1, 2, 2, 1)
     return keyboard.as_markup()
 
 
@@ -126,16 +127,36 @@ def saved_posts_menu(posts):
 
 def confirm_publish(channel_title, auto_delete):
     keyboard = InlineKeyboardBuilder()
-    keyboard.button(text="🚀 Yes, Publish", callback_data="post:publish_confirm")
-    keyboard.button(text="✏️ Edit Post", callback_data="menu:create")
-    keyboard.button(text="🏠 Main Menu", callback_data="menu:main")
+    keyboard.button(
+        text="🚀 Yes, Publish",
+        callback_data="post:publish_confirm",
+        style="success",
+    )
+    keyboard.button(
+        text="✏️ Edit Post",
+        callback_data="menu:create",
+        style="primary",
+    )
+    keyboard.button(
+        text="🏠 Main Menu",
+        callback_data="menu:main",
+        style="danger",
+    )
     keyboard.adjust(1, 2)
     return keyboard.as_markup()
 
 
 def published_menu():
     keyboard = InlineKeyboardBuilder()
-    keyboard.button(text="🆕 Create Another Post", callback_data="menu:create")
-    keyboard.button(text="🏠 Main Menu", callback_data="menu:main")
+    keyboard.button(
+        text="🆕 Create Another Post",
+        callback_data="menu:create",
+        style="primary",
+    )
+    keyboard.button(
+        text="🏠 Main Menu",
+        callback_data="menu:main",
+        style="danger",
+    )
     keyboard.adjust(1)
     return keyboard.as_markup()

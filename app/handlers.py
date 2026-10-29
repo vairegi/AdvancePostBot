@@ -75,8 +75,13 @@ def builder_text(draft):
 
     caption = "Added" if draft.get("text") else "Not added"
     media = esc(draft.get("media_type") or "No media")
-    button_rows = draft.get("button_rows") or []
-    button_count = sum(len(row) for row in button_rows)
+
+    inline_rows = draft.get("inline_button_rows") or []
+    caption_rows = draft.get("caption_button_rows") or []
+
+    inline_count = sum(len(row) for row in inline_rows)
+    caption_count = sum(len(row) for row in caption_rows)
+
     table = "Yes" if draft.get("table") else "No"
     channel = esc(draft.get("channel_title") or "Not selected")
     auto_delete = esc(human_time(draft.get("auto_delete_seconds")))
@@ -89,14 +94,15 @@ Create your post step by step.
 
 📝 <b>Caption:</b> {caption}
 🖼 <b>Media:</b> {media}
-🔗 <b>Buttons:</b> {button_count} buttons in {len(button_rows)} rows
+🔗 <b>Inline Buttons:</b> {inline_count} buttons in {len(inline_rows)} rows
+✨ <b>Caption Buttons:</b> {caption_count} buttons in {len(caption_rows)} rows
 📊 <b>Table:</b> {table}
 📺 <b>Channel:</b> {channel}
 ⏱ <b>Auto Delete:</b> {auto_delete}
 🔕 <b>Silent:</b> {silent}
 ✨ <b>Rich Mode:</b> {rich_mode}
 
-<i>Each button line becomes one row. Use || to place multiple buttons in the same row.</i>"""
+<i>Inline buttons appear below the post. Caption buttons appear inside a Rich Message.</i>"""
 
 
 async def show_builder(callback_or_message, user_id):
@@ -132,28 +138,27 @@ Telegram HTML is supported:
 <code>&lt;u&gt;Underline&lt;/u&gt;</code>
 <code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>
 
-<b>3. Buttons</b>
+<b>3. Inline Buttons</b>
+These buttons appear below the post.
+
 Each line creates one button row.
+Use <code>||</code> to place multiple buttons in the same row.
 
-For one button in a row:
+One button:
 <code>Join Channel | https://t.me/telegram | green</code>
 
-For two buttons in one row, separate them using <code>||</code>:
+Two buttons in one row:
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
-For one button on the first row, two on the second row, and one on the third row:
-<code>Join Channel | https://t.me/telegram | green</code>
-<code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
-<code>Join Channel | https://t.me/telegram | green</code>
+Colors: <code>blue</code>, <code>green</code>, <code>red</code>
 
-Colors:
-<code>blue</code>
-<code>green</code>
-<code>red</code>
+<b>4. Caption Buttons</b>
+These buttons appear inside a Rich Message.
+They work when Rich Mode is ON and the post has no media.
 
-If color is not entered, <code>blue</code> is used.
+Use the same format as Inline Buttons.
 
-<b>4. Table</b>
+<b>5. Table</b>
 The first line is the header. Other lines are rows.
 Separate columns using <code>|</code>.
 
@@ -162,11 +167,11 @@ Example:
 <code>Apple | $1.00</code>
 <code>Mango | $1.20</code>
 
-<b>5. Rich Mode</b>
-Turn Rich Mode ON to publish a Rich Message.
-It supports a real styled table and colored buttons inside the message.
+<b>6. Rich Mode</b>
+ON: Sends a Rich Message with a real styled table and caption buttons.
+OFF: Sends a normal post with colored inline buttons.
 
-<b>6. Publish</b>
+<b>7. Publish</b>
 Select a channel, check Preview, then tap Publish Now."""
 
 
@@ -188,7 +193,7 @@ async def start_command(message: Message):
     await message.answer(
         """👋 <b>Welcome to Advanced Post Creator Bot!</b>
 
-Use this bot to create professional Rich posts for your Telegram channels.
+Use this bot to create professional posts for your Telegram channels.
 
 🟢 <b>Create Post</b> — Create a new post
 📺 <b>My Channels</b> — Add or select channels
@@ -397,30 +402,48 @@ async def remove_media_callback(callback: CallbackQuery):
     await callback.answer("Media removed ✅")
 
 
-@router.callback_query(F.data == "edit:buttons")
-async def edit_buttons_callback(callback: CallbackQuery):
-    await save_draft(callback.from_user.id, {"waiting_for": "buttons"})
+@router.callback_query(F.data == "edit:ibuttons")
+async def edit_inline_buttons_callback(callback: CallbackQuery):
+    await save_draft(callback.from_user.id, {"waiting_for": "inline_buttons"})
 
     await callback.message.edit_text(
-        """🔗 <b>Add Buttons</b>
+        """🔗 <b>Add Inline Buttons</b>
+
+These buttons will appear below the post.
 
 Each line creates one button row.
+Use <code>||</code> for multiple buttons in the same row.
 
-One button in a row:
+One button:
 <code>Join Channel | https://t.me/telegram | green</code>
 
 Two buttons in one row:
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
-One button, then two buttons, then one button:
+Colors: <code>blue</code>, <code>green</code>, <code>red</code>""",
+        reply_markup=back_to_builder(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "edit:cbuttons")
+async def edit_caption_buttons_callback(callback: CallbackQuery):
+    await save_draft(callback.from_user.id, {"waiting_for": "caption_buttons"})
+
+    await callback.message.edit_text(
+        """✨ <b>Add Caption Buttons</b>
+
+These buttons will appear inside a Rich Message.
+Rich Mode must be ON, and the post must not contain media.
+
+Each line creates one button row.
+Use <code>||</code> for multiple buttons in the same row.
+
+Example:
 <code>Join Channel | https://t.me/telegram | green</code>
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
-<code>Join Channel | https://t.me/telegram | green</code>
 
-Colors:
-<code>blue</code>, <code>green</code>, <code>red</code>
-
-If color is not entered, <code>blue</code> is used.""",
+Colors: <code>blue</code>, <code>green</code>, <code>red</code>""",
         reply_markup=back_to_builder(),
     )
     await callback.answer()
@@ -531,48 +554,55 @@ async def reset_post_callback(callback: CallbackQuery):
     await callback.answer("New post started ✅")
 
 
-def post_keyboard(draft):
+def build_inline_keyboard(draft):
     draft = convert_old_buttons_to_rows(draft)
-    button_rows = draft.get("button_rows") or []
 
-    if not button_rows:
+    inline_rows = draft.get("inline_button_rows") or []
+    caption_rows = draft.get("caption_button_rows") or []
+
+    all_rows = inline_rows + caption_rows
+
+    if not all_rows:
         return None
 
-    inline_rows = []
+    keyboard_rows = []
 
-    for row in button_rows:
-        inline_row = []
+    for row in all_rows:
+        keyboard_row = []
 
         for button in row:
-            inline_row.append(
+            keyboard_row.append(
                 InlineKeyboardButton(
                     text=button["text"],
                     url=button["url"],
+                    style=button.get("color", "primary"),
                 )
             )
 
-        inline_rows.append(inline_row)
+        keyboard_rows.append(keyboard_row)
 
-    return InlineKeyboardMarkup(inline_keyboard=inline_rows)
+    return InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
 
 
 @router.callback_query(F.data == "post:preview")
 async def preview_callback(callback: CallbackQuery):
     draft = await get_draft(callback.from_user.id)
+    draft = convert_old_buttons_to_rows(draft)
 
-    if draft.get("rich_mode"):
+    if draft.get("rich_mode") and not draft.get("media_file_id"):
         rich_html = build_rich_html(draft)
 
         if not rich_html:
             await callback.answer(
-                "Add a caption, table, or buttons first.",
+                "Add a caption, table, or caption buttons first.",
                 show_alert=True,
             )
             return
 
         try:
             await callback.message.answer_rich(
-                InputRichMessage(html=rich_html)
+                InputRichMessage(html=rich_html),
+                reply_markup=build_inline_keyboard(draft),
             )
             await callback.answer("Rich preview sent below ✅")
         except TelegramBadRequest as error:
@@ -583,7 +613,7 @@ async def preview_callback(callback: CallbackQuery):
         return
 
     caption = build_caption(draft) or "<i>(No caption)</i>"
-    keyboard = post_keyboard(draft)
+    keyboard = build_inline_keyboard(draft)
 
     try:
         if draft.get("media_file_id"):
@@ -710,11 +740,13 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
     draft = convert_old_buttons_to_rows(draft)
 
     try:
-        if draft.get("rich_mode"):
-            rich_html = build_rich_html(draft)
+        if draft.get("rich_mode") and not draft.get("media_file_id"):
             sent_message = await bot.send_rich_message(
                 draft["channel_id"],
-                rich_message=InputRichMessage(html=rich_html),
+                rich_message=InputRichMessage(
+                    html=build_rich_html(draft)
+                ),
+                reply_markup=build_inline_keyboard(draft),
                 disable_notification=draft.get("silent", False),
             )
         elif draft.get("media_file_id"):
@@ -723,13 +755,13 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
                 draft["channel_id"],
                 draft,
                 build_caption(draft),
-                post_keyboard(draft),
+                build_inline_keyboard(draft),
             )
         else:
             sent_message = await bot.send_message(
                 draft["channel_id"],
                 build_caption(draft),
-                reply_markup=post_keyboard(draft),
+                reply_markup=build_inline_keyboard(draft),
                 disable_notification=draft.get("silent", False),
             )
     except Exception as error:
@@ -955,7 +987,7 @@ Add the bot as an administrator first, then try again."""
         )
         return
 
-    if waiting_for == "buttons":
+    if waiting_for in ("inline_buttons", "caption_buttons"):
         button_rows = parse_button_rows(message.text)
 
         if not button_rows:
@@ -974,15 +1006,22 @@ Colors: blue, green, red"""
             )
             return
 
-        await save_draft(user_id, {"button_rows": button_rows})
+        if waiting_for == "inline_buttons":
+            field = "inline_button_rows"
+            label = "Inline buttons"
+        else:
+            field = "caption_button_rows"
+            label = "Caption buttons"
+
+        await save_draft(user_id, {field: button_rows})
 
         row_count = len(button_rows)
         button_count = sum(len(row) for row in button_rows)
 
         await message.answer(
-            f"""✅ {button_count} buttons added in {row_count} rows.
+            f"""✅ {label} added: {button_count} buttons in {row_count} rows.
 
-Tap Preview to check the button layout.""",
+Tap Preview to check the layout.""",
             reply_markup=builder_menu(await get_draft(user_id)),
         )
         return
