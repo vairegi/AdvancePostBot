@@ -115,9 +115,9 @@ HELP_TEXT = (
     "<code>&lt;u&gt;Underline&lt;/u&gt;</code>, "
     "<code>&lt;s&gt;Strike&lt;/s&gt;</code>, "
     "<code>&lt;code&gt;Code&lt;/code&gt;</code>, "
-    "<code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>
+    '<code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>
 
-"
+'
     "<b>3. Buttons</b>
 "
     "हर button एक line में भेजें:
@@ -356,7 +356,7 @@ async def edit_text_callback(callback: CallbackQuery):
 "
         "<code>&lt;u&gt;Underline&lt;/u&gt;</code>
 "
-        "<code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>",
+        '<code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>',
         reply_markup=back_to_builder(),
     )
     await callback.answer()
