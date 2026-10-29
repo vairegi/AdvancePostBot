@@ -1,5 +1,7 @@
 import html
 
+NEWLINE = chr(10)
+
 
 def esc(text):
     return html.escape(text or "", quote=False)
@@ -9,59 +11,90 @@ def render_table(table):
     headers = table.get("headers") or []
     rows = table.get("rows") or []
     matrix = ([headers] + rows) if headers else rows
+
     if not matrix:
         return ""
 
-    columns = max(len(r) for r in matrix)
-    normalized = [list(r) + [""] * (columns - len(r)) for r in matrix]
-    widths = [max(len(str(row[c])) for row in normalized) for c in range(columns)]
+    columns = max(len(row) for row in matrix)
+    normalized = [list(row) + [""] * (columns - len(row)) for row in matrix]
+    widths = [
+        max(len(str(row[column])) for row in normalized)
+        for column in range(columns)
+    ]
 
     lines = []
-    for i, row in enumerate(normalized):
-        lines.append(" | ".join(str(row[c]).ljust(widths[c]) for c in range(columns)))
-        if i == 0 and headers:
-            lines.append("-+-".join("-" * w for w in widths))
 
-    return "<pre>" + esc("
-".join(lines)) + "</pre>"
+    for index, row in enumerate(normalized):
+        line = " | ".join(
+            str(row[column]).ljust(widths[column])
+            for column in range(columns)
+        )
+        lines.append(line)
+
+        if index == 0 and headers:
+            separator = "-+-".join("-" * width for width in widths)
+            lines.append(separator)
+
+    table_text = NEWLINE.join(lines)
+    return "<pre>" + esc(table_text) + "</pre>"
 
 
 def build_caption(draft):
     parts = []
+
     if draft.get("text"):
         parts.append(draft["text"])
+
     if draft.get("table"):
-        rendered = render_table(draft["table"])
-        if rendered:
-            parts.append(rendered)
-    return "
+        rendered_table = render_table(draft["table"])
+        if rendered_table:
+            parts.append(rendered_table)
 
-".join(p for p in parts if p)
+    return NEWLINE.join(part for part in parts if part)
 
 
-def parse_table_input(raw):
-    lines = [x.strip() for x in (raw or "").splitlines() if x.strip()]
+def parse_table_input(raw_text):
+    lines = [
+        line.strip()
+        for line in (raw_text or "").splitlines()
+        if line.strip()
+    ]
+
     if len(lines) < 2:
         return None
 
-    parsed = []
+    parsed_rows = []
+
     for line in lines:
-        cells = [c.strip() for c in line.split("|")]
+        cells = [cell.strip() for cell in line.split("|")]
+
         if len(cells) < 2:
             return None
-        parsed.append(cells)
 
-    return {"headers": parsed[0], "rows": parsed[1:]}
+        parsed_rows.append(cells)
+
+    return {
+        "headers": parsed_rows[0],
+        "rows": parsed_rows[1:],
+    }
 
 
 def human_time(seconds):
     seconds = int(seconds or 0)
+
     if not seconds:
         return "Permanent"
 
-    for value, name in ((86400, "day"), (3600, "hour"), (60, "minute")):
-        if seconds >= value:
-            n = seconds // value
-            return f"{n} {name}{'' if n == 1 else 's'}"
+    time_units = (
+        (86400, "day"),
+        (3600, "hour"),
+        (60, "minute"),
+    )
+
+    for unit_seconds, unit_name in time_units:
+        if seconds >= unit_seconds:
+            count = seconds // unit_seconds
+            suffix = "" if count == 1 else "s"
+            return f"{count} {unit_name}{suffix}"
 
     return f"{seconds} seconds"
