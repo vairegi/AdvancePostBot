@@ -2,9 +2,23 @@ import html
 
 NEWLINE = chr(10)
 
+COLOR_MAP = {
+    "blue": "primary",
+    "green": "success",
+    "red": "danger",
+    "primary": "primary",
+    "success": "success",
+    "danger": "danger",
+}
+
 
 def esc(text):
     return html.escape(text or "", quote=False)
+
+
+def normalize_color(color):
+    color = str(color or "blue").strip().lower()
+    return COLOR_MAP.get(color, "primary")
 
 
 def render_plain_table(table):
@@ -17,6 +31,7 @@ def render_plain_table(table):
 
     columns = max(len(row) for row in matrix)
     normalized = [list(row) + [""] * (columns - len(row)) for row in matrix]
+
     widths = [
         max(len(str(row[column])) for row in normalized)
         for column in range(columns)
@@ -50,14 +65,18 @@ def render_rich_table(table):
 
     if headers:
         parts.append("<tr>")
+
         for header in headers:
             parts.append("<th>" + esc(str(header)) + "</th>")
+
         parts.append("</tr>")
 
     for row in rows:
         parts.append("<tr>")
+
         for cell in row:
             parts.append("<td>" + esc(str(cell)) + "</td>")
+
         parts.append("</tr>")
 
     parts.append("</table>")
@@ -89,16 +108,16 @@ def build_rich_html(draft):
         if rich_table:
             parts.append(rich_table)
 
-    buttons = draft.get("buttons") or []
+    button_rows = draft.get("button_rows") or []
 
-    if buttons:
+    for row in button_rows:
+        if not row:
+            continue
+
         button_tags = []
 
-        for button in buttons:
-            style = button.get("style") or "primary"
-
-            if style not in ("primary", "success", "danger"):
-                style = "primary"
+        for button in row:
+            style = normalize_color(button.get("color"))
 
             button_tags.append(
                 '<tg-button type="url" url="'
@@ -143,35 +162,81 @@ def parse_table_input(raw_text):
     }
 
 
-def parse_button_input(raw_text):
-    buttons = []
+def parse_button_rows(raw_text):
+    button_rows = []
 
     for line in (raw_text or "").splitlines():
-        if "|" not in line:
+        line = line.strip()
+
+        if not line:
             continue
 
-        parts = [part.strip() for part in line.split("|")]
+        row = []
 
-        if len(parts) < 2:
-            continue
+        for button_text in line.split("||"):
+            button_text = button_text.strip()
 
-        label = parts[0]
-        url = parts[1]
-        style = parts[2].lower() if len(parts) >= 3 else "primary"
+            if not button_text:
+                continue
 
-        if style not in ("primary", "success", "danger"):
-            style = "primary"
+            parts = [part.strip() for part in button_text.split("|")]
 
-        if label and url.startswith(("http://", "https://")):
-            buttons.append(
+            if len(parts) < 2:
+                continue
+
+            label = parts[0]
+            url = parts[1]
+            color = parts[2] if len(parts) >= 3 else "blue"
+
+            if not label:
+                continue
+
+            if not url.startswith(("http://", "https://")):
+                continue
+
+            row.append(
                 {
                     "text": label,
                     "url": url,
-                    "style": style,
+                    "color": normalize_color(color),
                 }
             )
 
-    return buttons
+        if row:
+            button_rows.append(row)
+
+    return button_rows
+
+
+def convert_old_buttons_to_rows(draft):
+    """Support old saved posts that used a flat buttons list."""
+    if draft.get("button_rows"):
+        return draft
+
+    old_buttons = draft.get("buttons") or []
+
+    if not old_buttons:
+        return draft
+
+    per_row = int(draft.get("buttons_per_row") or 2)
+    button_rows = []
+
+    for index in range(0, len(old_buttons), per_row):
+        row = []
+
+        for button in old_buttons[index:index + per_row]:
+            row.append(
+                {
+                    "text": button.get("text", "Button"),
+                    "url": button.get("url", "https://t.me/telegram"),
+                    "color": normalize_color(button.get("style", "blue")),
+                }
+            )
+
+        button_rows.append(row)
+
+    draft["button_rows"] = button_rows
+    return draft
 
 
 def human_time(seconds):

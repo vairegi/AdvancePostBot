@@ -4,7 +4,13 @@ from bson import ObjectId
 
 from aiogram import Router, F, Bot
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, CallbackQuery, InputRichMessage
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    InputRichMessage,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+)
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
@@ -18,7 +24,6 @@ from app.keyboards import (
     autodelete_menu,
     media_menu,
     saved_posts_menu,
-    button_layout_menu,
     confirm_publish,
     published_menu,
 )
@@ -26,7 +31,8 @@ from app.utils import (
     build_caption,
     build_rich_html,
     parse_table_input,
-    parse_button_input,
+    parse_button_rows,
+    convert_old_buttons_to_rows,
     human_time,
     esc,
 )
@@ -65,9 +71,12 @@ async def save_draft(user_id, update):
 
 
 def builder_text(draft):
+    draft = convert_old_buttons_to_rows(draft)
+
     caption = "Added" if draft.get("text") else "Not added"
     media = esc(draft.get("media_type") or "No media")
-    buttons = len(draft.get("buttons") or [])
+    button_rows = draft.get("button_rows") or []
+    button_count = sum(len(row) for row in button_rows)
     table = "Yes" if draft.get("table") else "No"
     channel = esc(draft.get("channel_title") or "Not selected")
     auto_delete = esc(human_time(draft.get("auto_delete_seconds")))
@@ -80,14 +89,14 @@ Create your post step by step.
 
 📝 <b>Caption:</b> {caption}
 🖼 <b>Media:</b> {media}
-🔗 <b>Buttons:</b> {buttons}
+🔗 <b>Buttons:</b> {button_count} buttons in {len(button_rows)} rows
 📊 <b>Table:</b> {table}
 📺 <b>Channel:</b> {channel}
 ⏱ <b>Auto Delete:</b> {auto_delete}
 🔕 <b>Silent:</b> {silent}
 ✨ <b>Rich Mode:</b> {rich_mode}
 
-<i>Rich Mode sends a real Rich Message with a styled table and colored in-message buttons.</i>"""
+<i>Each button line becomes one row. Use || to place multiple buttons in the same row.</i>"""
 
 
 async def show_builder(callback_or_message, user_id):
@@ -124,21 +133,25 @@ Telegram HTML is supported:
 <code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>
 
 <b>3. Buttons</b>
-Send each button on a separate line:
+Each line creates one button row.
 
-<code>Button Text | https://example.com | style</code>
+For one button in a row:
+<code>Join Channel | https://t.me/telegram | green</code>
 
-Available styles:
-<code>primary</code> — blue
-<code>success</code> — green
-<code>danger</code> — red
+For two buttons in one row, separate them using <code>||</code>:
+<code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
-Example:
-<code>Visit Website | https://example.com | primary</code>
-<code>Join Channel | https://t.me/telegram | success</code>
-<code>Important Notice | https://example.com | danger</code>
+For one button on the first row, two on the second row, and one on the third row:
+<code>Join Channel | https://t.me/telegram | green</code>
+<code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
+<code>Join Channel | https://t.me/telegram | green</code>
 
-If you do not enter a style, <code>primary</code> will be used.
+Colors:
+<code>blue</code>
+<code>green</code>
+<code>red</code>
+
+If color is not entered, <code>blue</code> is used.
 
 <b>4. Table</b>
 The first line is the header. Other lines are rows.
@@ -274,6 +287,7 @@ async def load_post_callback(callback: CallbackQuery):
 
     post["user_id"] = callback.from_user.id
     post["waiting_for"] = None
+    post = convert_old_buttons_to_rows(post)
 
     await db.drafts.replace_one(
         {"user_id": callback.from_user.id},
@@ -388,39 +402,28 @@ async def edit_buttons_callback(callback: CallbackQuery):
     await save_draft(callback.from_user.id, {"waiting_for": "buttons"})
 
     await callback.message.edit_text(
-        """🔗 <b>Add Inline Buttons</b>
+        """🔗 <b>Add Buttons</b>
 
-Send each button on a separate line:
+Each line creates one button row.
 
-<code>Button Text | https://example.com | style</code>
+One button in a row:
+<code>Join Channel | https://t.me/telegram | green</code>
 
-Styles:
-<code>primary</code> — blue
-<code>success</code> — green
-<code>danger</code> — red
+Two buttons in one row:
+<code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
-Example:
-<code>Visit Website | https://example.com | primary</code>
-<code>Join Channel | https://t.me/telegram | success</code>
-<code>Important Notice | https://example.com | danger</code>
+One button, then two buttons, then one button:
+<code>Join Channel | https://t.me/telegram | green</code>
+<code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
+<code>Join Channel | https://t.me/telegram | green</code>
 
-If style is not entered, <code>primary</code> is used.""",
+Colors:
+<code>blue</code>, <code>green</code>, <code>red</code>
+
+If color is not entered, <code>blue</code> is used.""",
         reply_markup=back_to_builder(),
     )
     await callback.answer()
-
-
-@router.callback_query(F.data.startswith("btnrow:"))
-async def button_row_callback(callback: CallbackQuery):
-    per_row = int(callback.data.split(":", 1)[1])
-
-    await save_draft(
-        callback.from_user.id,
-        {"buttons_per_row": per_row},
-    )
-
-    await show_builder(callback, callback.from_user.id)
-    await callback.answer(f"{per_row} buttons per row saved ✅")
 
 
 @router.callback_query(F.data == "edit:table")
@@ -529,19 +532,28 @@ async def reset_post_callback(callback: CallbackQuery):
 
 
 def post_keyboard(draft):
-    keyboard = InlineKeyboardBuilder()
+    draft = convert_old_buttons_to_rows(draft)
+    button_rows = draft.get("button_rows") or []
 
-    for button in draft.get("buttons") or []:
-        keyboard.button(
-            text=button["text"],
-            url=button["url"],
-        )
+    if not button_rows:
+        return None
 
-    if draft.get("buttons"):
-        keyboard.adjust(draft.get("buttons_per_row") or 2)
-        return keyboard.as_markup()
+    inline_rows = []
 
-    return None
+    for row in button_rows:
+        inline_row = []
+
+        for button in row:
+            inline_row.append(
+                InlineKeyboardButton(
+                    text=button["text"],
+                    url=button["url"],
+                )
+            )
+
+        inline_rows.append(inline_row)
+
+    return InlineKeyboardMarkup(inline_keyboard=inline_rows)
 
 
 @router.callback_query(F.data == "post:preview")
@@ -695,6 +707,7 @@ Do you want to publish this post?""",
 @router.callback_query(F.data == "post:publish_confirm")
 async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
     draft = await get_draft(callback.from_user.id)
+    draft = convert_old_buttons_to_rows(draft)
 
     try:
         if draft.get("rich_mode"):
@@ -943,26 +956,34 @@ Add the bot as an administrator first, then try again."""
         return
 
     if waiting_for == "buttons":
-        buttons = parse_button_input(message.text)
+        button_rows = parse_button_rows(message.text)
 
-        if not buttons:
+        if not button_rows:
             await message.reply(
-                """❌ Invalid format.
+                """❌ Invalid button format.
 
-Use this format:
-<code>Button Text | https://example.com | style</code>
+Each line is one row.
 
-Styles: primary, success, danger"""
+One button:
+<code>Join Channel | https://t.me/telegram | green</code>
+
+Two buttons in one row:
+<code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
+
+Colors: blue, green, red"""
             )
             return
 
-        await save_draft(user_id, {"buttons": buttons})
+        await save_draft(user_id, {"button_rows": button_rows})
+
+        row_count = len(button_rows)
+        button_count = sum(len(row) for row in button_rows)
 
         await message.answer(
-            f"""✅ {len(buttons)} buttons added.
+            f"""✅ {button_count} buttons added in {row_count} rows.
 
-Now choose how many buttons should appear in one row:""",
-            reply_markup=button_layout_menu(),
+Tap Preview to check the button layout.""",
+            reply_markup=builder_menu(await get_draft(user_id)),
         )
         return
 

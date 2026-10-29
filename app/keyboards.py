@@ -124,20 +124,6 @@ def saved_posts_menu(posts):
     return keyboard.as_markup()
 
 
-def button_layout_menu():
-    keyboard = InlineKeyboardBuilder()
-
-    for count in (1, 2, 3):
-        keyboard.button(
-            text=str(count) + " per row",
-            callback_data="btnrow:" + str(count),
-        )
-
-    keyboard.button(text="⬅️ Back to Builder", callback_data="menu:create")
-    keyboard.adjust(3, 1)
-    return keyboard.as_markup()
-
-
 def confirm_publish(channel_title, auto_delete):
     keyboard = InlineKeyboardBuilder()
     keyboard.button(text="🚀 Yes, Publish", callback_data="post:publish_confirm")
