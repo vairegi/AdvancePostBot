@@ -35,6 +35,20 @@ def main_menu():
     return keyboard.as_markup()
 
 
+def draft_choice_menu():
+    keyboard = InlineKeyboardBuilder()
+    keyboard.row(
+        styled_button("Continue Editing", "post:continue", "success")
+    )
+    keyboard.row(
+        styled_button("Start New Post", "post:new", "danger")
+    )
+    keyboard.row(
+        styled_button("Main Menu", "menu:main", "primary")
+    )
+    return keyboard.as_markup()
+
+
 def builder_menu(draft):
     keyboard = InlineKeyboardBuilder()
     keyboard.row(
@@ -138,14 +152,16 @@ def channel_select_menu(channels, current_channel_id):
     for channel in channels:
         if channel["chat_id"] == current_channel_id:
             marker = "Selected"
+            style = "success"
         else:
             marker = "Select"
+            style = "primary"
 
         keyboard.row(
             styled_button(
                 marker + " - " + str(channel.get("title") or channel["chat_id"]),
                 "pickch:" + str(channel["chat_id"]),
-                "success" if channel["chat_id"] == current_channel_id else "primary",
+                style,
             )
         )
 

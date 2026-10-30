@@ -23,12 +23,25 @@ def empty_draft():
         "text": "",
         "media_type": None,
         "media_file_id": None,
-        "buttons": [],
-        "buttons_per_row": 2,
+        "button_rows": [],
+        "caption_button_rows": [],
         "table": None,
         "channel_id": None,
         "channel_title": None,
         "auto_delete_seconds": 0,
         "silent": False,
+        "rich_mode": False,
         "waiting_for": None,
+        "preview_message_id": None,
+        "builder_message_id": None,
     }
+
+
+def draft_has_content(draft):
+    return bool(
+        draft.get("text")
+        or draft.get("media_file_id")
+        or draft.get("table")
+        or draft.get("button_rows")
+        or draft.get("caption_button_rows")
+    )

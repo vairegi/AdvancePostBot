@@ -17,6 +17,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from app import db
 from app.keyboards import (
     main_menu,
+    draft_choice_menu,
     builder_menu,
     buttons_menu,
     back_to_builder,
@@ -72,6 +73,16 @@ async def save_draft(user_id, update):
     )
 
 
+async def delete_message_safe(bot, chat_id, message_id):
+    if not message_id:
+        return
+
+    try:
+        await bot.delete_message(chat_id, message_id)
+    except Exception:
+        pass
+
+
 def builder_text(draft):
     draft = convert_old_buttons_to_rows(draft)
 
@@ -94,7 +105,8 @@ def builder_text(draft):
 🛠 <b>ADVANCED POST BUILDER</b>
 ━━━━━━━━━━━━━━━━━━━━
 
-Create a professional post for your channel.
+Your post preview is shown above.
+Every change you make will update the preview automatically.
 
 ━━━━━━━━━━━━━━━━━━━━
 <b>POST DETAILS</b>
@@ -111,27 +123,148 @@ Create a professional post for your channel.
 ✨ <b>Rich Mode:</b> {rich_mode}
 
 ━━━━━━━━━━━━━━━━━━━━
-<i>Choose an option below to continue.</i>"""
+💡 <b>QUICK GUIDE</b>
+━━━━━━━━━━━━━━━━━━━━
+
+💡 <b>Add Caption</b> — Add your post text
+
+💡 <b>Add Media</b> — Add a photo, video, document or audio
+
+💡 <b>Add Buttons</b> — Add inline buttons or colored caption buttons
+
+💡 <b>Add Table</b> — Create a clean table
+
+💡 <b>Select Channel</b> — Choose where to publish
+
+💡 <b>Publish Now</b> — Publish the post to your channel"""
 
 
-async def show_builder(callback_or_message, user_id):
+
+async def refresh_builder(bot: Bot, chat_id: int, user_id: int):
     draft = await get_draft(user_id)
-    text = builder_text(draft)
-    keyboard = builder_menu(draft)
+    draft = convert_old_buttons_to_rows(draft)
 
-    if isinstance(callback_or_message, CallbackQuery):
-        try:
-            await callback_or_message.message.edit_text(
-                text,
+    await delete_message_safe(bot, chat_id, draft.get("preview_message_id"))
+    await delete_message_safe(bot, chat_id, draft.get("builder_message_id"))
+
+    caption = build_caption(draft)
+    keyboard = post_keyboard(draft)
+
+    try:
+        if draft.get("media_file_id"):
+            media_type = draft.get("media_type")
+            file_id = draft["media_file_id"]
+
+            if media_type == "photo":
+                preview = await bot.send_photo(
+                    chat_id,
+                    file_id,
+                    caption=caption or "No caption added yet.",
+                    reply_markup=keyboard,
+                )
+            elif media_type == "video":
+                preview = await bot.send_video(
+                    chat_id,
+                    file_id,
+                    caption=caption or "No caption added yet.",
+                    reply_markup=keyboard,
+                )
+            elif media_type == "audio":
+                preview = await bot.send_audio(
+                    chat_id,
+                    file_id,
+                    caption=caption or "No caption added yet.",
+                    reply_markup=keyboard,
+                )
+            elif media_type == "document":
+                preview = await bot.send_document(
+                    chat_id,
+                    file_id,
+                    caption=caption or "No caption added yet.",
+                    reply_markup=keyboard,
+                )
+            elif media_type == "animation":
+                preview = await bot.send_animation(
+                    chat_id,
+                    file_id,
+                    caption=caption or "No caption added yet.",
+                    reply_markup=keyboard,
+                )
+            else:
+                preview = await bot.send_message(
+                    chat_id,
+                    caption or "No caption added yet.",
+                    reply_markup=keyboard,
+                )
+        else:
+            preview_text = "👁 <b>LIVE PREVIEW</b>
+
+"
+            preview_text += caption or "<i>No caption added yet.</i>"
+
+            preview = await bot.send_message(
+                chat_id,
+                preview_text,
                 reply_markup=keyboard,
             )
-        except TelegramBadRequest:
-            await callback_or_message.message.answer(
-                text,
-                reply_markup=keyboard,
+
+        builder_message = await bot.send_message(
+            chat_id,
+            builder_text(draft),
+            reply_markup=builder_menu(draft),
+        )
+
+        await save_draft(
+            user_id,
+            {
+                "preview_message_id": preview.message_id,
+                "builder_message_id": builder_message.message_id,
+            },
+        )
+    except TelegramBadRequest as error:
+        await bot.send_message(
+            chat_id,
+            f"⚠️ Preview error: {error.message}",
+        )
+
+
+async def refresh_builder_from_callback(callback: CallbackQuery):
+    await delete_message_safe(
+        callback.bot,
+        callback.message.chat.id,
+        callback.message.message_id,
+    )
+
+    await refresh_builder(
+        callback.bot,
+        callback.message.chat.id,
+        callback.from_user.id,
+    )
+
+
+def post_keyboard(draft):
+    draft = convert_old_buttons_to_rows(draft)
+    button_rows = draft.get("button_rows") or []
+
+    if not button_rows:
+        return None
+
+    inline_rows = []
+
+    for row in button_rows:
+        inline_row = []
+
+        for button in row:
+            inline_row.append(
+                InlineKeyboardButton(
+                    text=button["text"],
+                    url=button["url"],
+                )
             )
-    else:
-        await callback_or_message.answer(text, reply_markup=keyboard)
+
+        inline_rows.append(inline_row)
+
+    return InlineKeyboardMarkup(inline_keyboard=inline_rows)
 
 
 HELP_TEXT = """━━━━━━━━━━━━━━━━━━━━
@@ -164,13 +297,13 @@ Telegram HTML is supported:
 
 Each line creates one button row.
 
-One button in a row:
+💡 One button in a row:
 <code>Join Channel | https://t.me/telegram | green</code>
 
-Two buttons in one row:
+💡 Two buttons in one row:
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
-One button, then two buttons, then one button:
+💡 One button, then two buttons, then one button:
 <code>Join Channel | https://t.me/telegram | green</code>
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 <code>Join Channel | https://t.me/telegram | green</code>
@@ -189,7 +322,7 @@ If color is not entered, <code>blue</code> is used.
 The first line is the header. Other lines are rows.
 Separate columns using <code>|</code>.
 
-Example:
+💡 Example:
 <code>Product | Price</code>
 <code>Apple | $1.00</code>
 <code>Mango | $1.20</code>
@@ -205,7 +338,7 @@ It supports a real styled table and colored caption buttons.
 <b>6. Publish</b>
 ━━━━━━━━━━━━━━━━━━━━
 
-Select a channel, check Preview, then tap Publish Now."""
+Select a channel, check the live preview, then tap Publish Now."""
 
 
 @router.message(CommandStart())
@@ -244,7 +377,7 @@ Create beautiful, professional and rich posts for your Telegram channels.
 • Set automatic deletion
 
 ━━━━━━━━━━━━━━━━━━━━
-<i>Tap <b>Create Post</b> to get started.</i>""",
+💡 <i>Tap <b>Create Post</b> to get started.</i>""",
         reply_markup=main_menu(),
     )
 
@@ -256,6 +389,14 @@ async def help_command(message: Message):
 
 @router.callback_query(F.data == "menu:main")
 async def main_menu_callback(callback: CallbackQuery):
+    draft = await get_draft(callback.from_user.id)
+
+    await delete_message_safe(
+        callback.bot,
+        callback.message.chat.id,
+        draft.get("preview_message_id"),
+    )
+
     await callback.message.edit_text(
         """━━━━━━━━━━━━━━━━━━━━
 👋 <b>MAIN MENU</b>
@@ -278,8 +419,45 @@ async def help_callback(callback: CallbackQuery):
 
 @router.callback_query(F.data == "menu:create")
 async def create_post_callback(callback: CallbackQuery):
-    await show_builder(callback, callback.from_user.id)
+    draft = await get_draft(callback.from_user.id)
+
+    if db.draft_has_content(draft):
+        await callback.message.edit_text(
+            """━━━━━━━━━━━━━━━━━━━━
+🛠 <b>UNFINISHED POST FOUND</b>
+━━━━━━━━━━━━━━━━━━━━
+
+You already have an unfinished post.
+
+💡 Do you want to continue editing it, or start a new post?""",
+            reply_markup=draft_choice_menu(),
+        )
+        await callback.answer()
+        return
+
+    await refresh_builder_from_callback(callback)
     await callback.answer()
+
+
+@router.callback_query(F.data == "post:continue")
+async def continue_post_callback(callback: CallbackQuery):
+    await refresh_builder_from_callback(callback)
+    await callback.answer("Continuing your post ✅")
+
+
+@router.callback_query(F.data == "post:new")
+async def new_post_callback(callback: CallbackQuery):
+    draft = db.empty_draft()
+    draft["user_id"] = callback.from_user.id
+
+    await db.drafts.replace_one(
+        {"user_id": callback.from_user.id},
+        draft,
+        upsert=True,
+    )
+
+    await refresh_builder_from_callback(callback)
+    await callback.answer("New post started ✅")
 
 
 @router.callback_query(F.data == "menu:channels")
@@ -313,7 +491,7 @@ async def saved_posts_callback(callback: CallbackQuery):
 
 You have no saved posts yet.
 
-Open the Post Builder and tap <b>Save Post</b>.""",
+💡 Open the Post Builder and tap <b>Save Post</b>.""",
             reply_markup=back_to_builder(),
         )
     else:
@@ -354,7 +532,7 @@ async def load_post_callback(callback: CallbackQuery):
         upsert=True,
     )
 
-    await show_builder(callback, callback.from_user.id)
+    await refresh_builder_from_callback(callback)
     await callback.answer("Post loaded ✅")
 
 
@@ -406,7 +584,7 @@ async def pick_channel_callback(callback: CallbackQuery):
         },
     )
 
-    await show_builder(callback, callback.from_user.id)
+    await refresh_builder_from_callback(callback)
     await callback.answer("Channel selected ✅")
 
 
@@ -421,7 +599,7 @@ async def edit_text_callback(callback: CallbackQuery):
 
 Send your caption or post text now.
 
-Telegram HTML is supported:
+💡 Telegram HTML is supported:
 
 <code>&lt;b&gt;Bold&lt;/b&gt;</code>
 <code>&lt;i&gt;Italic&lt;/i&gt;</code>
@@ -442,7 +620,9 @@ async def edit_media_callback(callback: CallbackQuery):
 🖼 <b>ADD MEDIA</b>
 ━━━━━━━━━━━━━━━━━━━━
 
-Send a photo, video, audio file, document, or animation.""",
+Send a photo, video, audio file, document, or animation.
+
+💡 Your media will appear in the live preview above.""",
         reply_markup=media_menu(bool(draft.get("media_file_id"))),
     )
     await callback.answer()
@@ -458,7 +638,7 @@ async def remove_media_callback(callback: CallbackQuery):
         },
     )
 
-    await show_builder(callback, callback.from_user.id)
+    await refresh_builder_from_callback(callback)
     await callback.answer("Media removed ✅")
 
 
@@ -471,9 +651,9 @@ async def buttons_menu_callback(callback: CallbackQuery):
 
 Choose the type of buttons you want to add.
 
-<b>Inline Buttons</b> appear below the post.
+💡 <b>Inline Buttons</b> appear below the post.
 
-<b>Caption Buttons</b> appear inside a Rich Message and support colors.""",
+💡 <b>Caption Buttons</b> appear inside a Rich Message and support colors.""",
         reply_markup=buttons_menu(),
     )
     await callback.answer()
@@ -490,13 +670,13 @@ async def inline_buttons_callback(callback: CallbackQuery):
 
 Each line creates one button row.
 
-One button in a row:
+💡 One button in a row:
 <code>Join Channel | https://t.me/telegram | green</code>
 
-Two buttons in one row:
+💡 Two buttons in one row:
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
-Colors: <code>blue</code>, <code>green</code>, <code>red</code>
+💡 Colors: <code>blue</code>, <code>green</code>, <code>red</code>
 
 Send your buttons now.""",
         reply_markup=back_to_buttons_menu(),
@@ -517,13 +697,13 @@ These buttons appear inside a Rich Message.
 
 Each line creates one button row.
 
-One button in a row:
+💡 One button in a row:
 <code>Join Channel | https://t.me/telegram | green</code>
 
-Two buttons in one row:
+💡 Two buttons in one row:
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
-Colors: <code>blue</code>, <code>green</code>, <code>red</code>
+💡 Colors: <code>blue</code>, <code>green</code>, <code>red</code>
 
 Send your caption buttons now.""",
         reply_markup=back_to_buttons_menu(),
@@ -543,7 +723,7 @@ async def edit_table_callback(callback: CallbackQuery):
 The first line is the header. Other lines are rows.
 Separate columns using <code>|</code>.
 
-Example:
+💡 Example:
 <code>Product | Price</code>
 <code>Apple | $1.00</code>
 <code>Mango | $1.20</code>
@@ -582,7 +762,7 @@ async def autodelete_callback(callback: CallbackQuery):
 
 Choose when the post should be deleted automatically.
 
-If you choose Permanent, the post will not be deleted.""",
+💡 If you choose Permanent, the post will not be deleted.""",
         reply_markup=autodelete_menu(),
     )
     await callback.answer()
@@ -597,7 +777,7 @@ async def set_autodelete_callback(callback: CallbackQuery):
         {"auto_delete_seconds": seconds},
     )
 
-    await show_builder(callback, callback.from_user.id)
+    await refresh_builder_from_callback(callback)
     await callback.answer("Auto delete set ✅")
 
 
@@ -610,7 +790,7 @@ async def toggle_silent_callback(callback: CallbackQuery):
         {"silent": not draft.get("silent", False)},
     )
 
-    await show_builder(callback, callback.from_user.id)
+    await refresh_builder_from_callback(callback)
     await callback.answer("Silent mode updated ✅")
 
 
@@ -623,7 +803,7 @@ async def toggle_rich_callback(callback: CallbackQuery):
         {"rich_mode": not draft.get("rich_mode", False)},
     )
 
-    await show_builder(callback, callback.from_user.id)
+    await refresh_builder_from_callback(callback)
     await callback.answer("Rich Mode updated ✅")
 
 
@@ -638,115 +818,67 @@ async def reset_post_callback(callback: CallbackQuery):
         upsert=True,
     )
 
-    await show_builder(callback, callback.from_user.id)
+    await refresh_builder_from_callback(callback)
     await callback.answer("New post started ✅")
-
-
-def post_keyboard(draft):
-    draft = convert_old_buttons_to_rows(draft)
-    button_rows = draft.get("button_rows") or []
-
-    if not button_rows:
-        return None
-
-    inline_rows = []
-
-    for row in button_rows:
-        inline_row = []
-
-        for button in row:
-            inline_row.append(
-                InlineKeyboardButton(
-                    text=button["text"],
-                    url=button["url"],
-                )
-            )
-
-        inline_rows.append(inline_row)
-
-    return InlineKeyboardMarkup(inline_keyboard=inline_rows)
 
 
 @router.callback_query(F.data == "post:preview")
 async def preview_callback(callback: CallbackQuery):
-    draft = await get_draft(callback.from_user.id)
-
-    if draft.get("rich_mode"):
-        rich_html = build_rich_html(draft)
-
-        if not rich_html:
-            await callback.answer(
-                "Add a caption, table, or caption buttons first.",
-                show_alert=True,
-            )
-            return
-
-        try:
-            await callback.message.answer_rich(
-                InputRichMessage(html=rich_html)
-            )
-            await callback.answer("Rich preview sent below ✅")
-        except TelegramBadRequest as error:
-            await callback.answer(
-                f"Rich preview failed: {error.message}",
-                show_alert=True,
-            )
-        return
-
-    caption = build_caption(draft) or "<i>(No caption)</i>"
-    keyboard = post_keyboard(draft)
-
-    try:
-        if draft.get("media_file_id"):
-            await send_media(callback.message, draft, caption, keyboard)
-        else:
-            await callback.message.answer(
-                caption,
-                reply_markup=keyboard,
-            )
-
-        await callback.answer("Preview sent below ✅")
-    except TelegramBadRequest as error:
-        await callback.answer(
-            f"Preview error: {error.message}",
-            show_alert=True,
-        )
+    await refresh_builder_from_callback(callback)
+    await callback.answer("Live preview refreshed ✅")
 
 
-async def send_media(message, draft, caption, keyboard):
+async def send_media_message(bot, chat_id, draft, caption, keyboard):
     file_id = draft["media_file_id"]
     media_type = draft.get("media_type")
+    silent = draft.get("silent", False)
 
     if media_type == "photo":
-        await message.answer_photo(
+        return await bot.send_photo(
+            chat_id,
             file_id,
             caption=caption,
             reply_markup=keyboard,
+            disable_notification=silent,
         )
-    elif media_type == "video":
-        await message.answer_video(
+
+    if media_type == "video":
+        return await bot.send_video(
+            chat_id,
             file_id,
             caption=caption,
             reply_markup=keyboard,
+            disable_notification=silent,
         )
-    elif media_type == "audio":
-        await message.answer_audio(
+
+    if media_type == "audio":
+        return await bot.send_audio(
+            chat_id,
             file_id,
             caption=caption,
             reply_markup=keyboard,
+            disable_notification=silent,
         )
-    elif media_type == "document":
-        await message.answer_document(
+
+    if media_type == "document":
+        return await bot.send_document(
+            chat_id,
             file_id,
             caption=caption,
             reply_markup=keyboard,
+            disable_notification=silent,
         )
-    elif media_type == "animation":
-        await message.answer_animation(
+
+    if media_type == "animation":
+        return await bot.send_animation(
+            chat_id,
             file_id,
             caption=caption,
             reply_markup=keyboard,
+            disable_notification=silent,
         )
+
+    raise ValueError("Unsupported media type")
 
 
 @router.callback_query(F.data == "post:save")
@@ -773,7 +905,7 @@ async def save_post_callback(callback: CallbackQuery):
 
 Send a name for this post.
 
-This name will appear only in your Saved Posts.
+💡 This name will appear only in your Saved Posts.
 
 Example: <code>Daily Offer Post</code>""",
         reply_markup=back_to_builder(),
@@ -836,7 +968,7 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
                 disable_notification=draft.get("silent", False),
             )
         elif draft.get("media_file_id"):
-            sent_message = await send_media_to_chat(
+            sent_message = await send_media_message(
                 bot,
                 draft["channel_id"],
                 draft,
@@ -867,6 +999,12 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
             )
         )
 
+    await delete_message_safe(
+        bot,
+        callback.message.chat.id,
+        draft.get("preview_message_id"),
+    )
+
     channel_title = draft.get("channel_title") or str(draft["channel_id"])
 
     await callback.message.edit_text(
@@ -880,59 +1018,6 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
         reply_markup=published_menu(),
     )
     await callback.answer("Published ✅")
-
-
-async def send_media_to_chat(bot, chat_id, draft, caption, keyboard):
-    file_id = draft["media_file_id"]
-    media_type = draft.get("media_type")
-    silent = draft.get("silent", False)
-
-    if media_type == "photo":
-        return await bot.send_photo(
-            chat_id,
-            file_id,
-            caption=caption,
-            reply_markup=keyboard,
-            disable_notification=silent,
-        )
-
-    if media_type == "video":
-        return await bot.send_video(
-            chat_id,
-            file_id,
-            caption=caption,
-            reply_markup=keyboard,
-            disable_notification=silent,
-        )
-
-    if media_type == "audio":
-        return await bot.send_audio(
-            chat_id,
-            file_id,
-            caption=caption,
-            reply_markup=keyboard,
-            disable_notification=silent,
-        )
-
-    if media_type == "document":
-        return await bot.send_document(
-            chat_id,
-            file_id,
-            caption=caption,
-            reply_markup=keyboard,
-            disable_notification=silent,
-        )
-
-    if media_type == "animation":
-        return await bot.send_animation(
-            chat_id,
-            file_id,
-            caption=caption,
-            reply_markup=keyboard,
-            disable_notification=silent,
-        )
-
-    raise ValueError("Unsupported media type")
 
 
 async def delete_later(bot, chat_id, message_id, seconds):
@@ -981,6 +1066,7 @@ async def resolve_channel(bot, message):
 @router.message(F.text | F.photo | F.video | F.audio | F.document | F.animation)
 async def input_handler(message: Message, bot: Bot):
     user_id = message.from_user.id
+    chat_id = message.chat.id
     draft = await get_draft(user_id)
     waiting_for = draft.get("waiting_for")
 
@@ -988,16 +1074,16 @@ async def input_handler(message: Message, bot: Bot):
         return
 
     if waiting_for == "channel_add":
-        chat_id, title = await resolve_channel(bot, message)
+        chat_id_channel, title = await resolve_channel(bot, message)
 
-        if not chat_id:
+        if not chat_id_channel:
             await message.reply(
                 "❌ Send <code>@channelusername</code> or forward a message from the channel."
             )
             return
 
         try:
-            member = await bot.get_chat_member(chat_id, bot.id)
+            member = await bot.get_chat_member(chat_id_channel, bot.id)
 
             if member.status not in ("administrator", "creator"):
                 raise ValueError("Bot is not an administrator")
@@ -1013,11 +1099,11 @@ Add the bot as an administrator first, then try again."""
             return
 
         await db.channels.update_one(
-            {"user_id": user_id, "chat_id": chat_id},
+            {"user_id": user_id, "chat_id": chat_id_channel},
             {
                 "$set": {
                     "user_id": user_id,
-                    "chat_id": chat_id,
+                    "chat_id": chat_id_channel,
                     "title": title,
                 }
             },
@@ -1042,12 +1128,8 @@ Add the bot as an administrator first, then try again."""
             {"text": message.html_text or message.text or ""},
         )
 
-        updated_draft = await get_draft(user_id)
-
-        await message.answer(
-            "✅ Caption saved. Choose the next step.",
-            reply_markup=builder_menu(updated_draft),
-        )
+        await delete_message_safe(bot, chat_id, message.message_id)
+        await refresh_builder(bot, chat_id, user_id)
         return
 
     if waiting_for == "media":
@@ -1067,12 +1149,8 @@ Add the bot as an administrator first, then try again."""
             },
         )
 
-        updated_draft = await get_draft(user_id)
-
-        await message.answer(
-            "✅ Media saved.",
-            reply_markup=builder_menu(updated_draft),
-        )
+        await delete_message_safe(bot, chat_id, message.message_id)
+        await refresh_builder(bot, chat_id, user_id)
         return
 
     if waiting_for in ("inline_buttons", "caption_buttons"):
@@ -1084,13 +1162,13 @@ Add the bot as an administrator first, then try again."""
 
 Each line is one row.
 
-One button:
+💡 One button:
 <code>Join Channel | https://t.me/telegram | green</code>
 
-Two buttons in one row:
+💡 Two buttons in one row:
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
-Colors: blue, green, red"""
+💡 Colors: blue, green, red"""
             )
             return
 
@@ -1106,15 +1184,14 @@ Colors: blue, green, red"""
 
         await save_draft(user_id, {field: button_rows})
 
-        updated_draft = await get_draft(user_id)
+        await delete_message_safe(bot, chat_id, message.message_id)
+        await refresh_builder(bot, chat_id, user_id)
 
-        await message.answer(
-            f"""✅ <b>{button_type} saved</b>
+        await bot.send_message(
+            chat_id,
+            f"✅ <b>{button_type} saved</b>
 
-{button_count} buttons in {row_count} rows.
-
-Tap Preview to check the layout.""",
-            reply_markup=builder_menu(updated_draft),
+{button_count} buttons in {row_count} rows.",
         )
         return
 
@@ -1125,7 +1202,7 @@ Tap Preview to check the layout.""",
             await message.reply(
                 """❌ You need at least 2 lines, and each line must contain at least 2 columns.
 
-Example:
+💡 Example:
 <code>Product | Price</code>
 <code>Apple | $1.00</code>"""
             )
@@ -1133,12 +1210,8 @@ Example:
 
         await save_draft(user_id, {"table": table})
 
-        updated_draft = await get_draft(user_id)
-
-        await message.answer(
-            "✅ Table saved.",
-            reply_markup=builder_menu(updated_draft),
-        )
+        await delete_message_safe(bot, chat_id, message.message_id)
+        await refresh_builder(bot, chat_id, user_id)
         return
 
     if waiting_for == "save_title":
@@ -1153,11 +1226,12 @@ Example:
         await db.saved_posts.insert_one(saved_post)
         await save_draft(user_id, {"waiting_for": None})
 
-        updated_draft = await get_draft(user_id)
+        await delete_message_safe(bot, chat_id, message.message_id)
+        await refresh_builder(bot, chat_id, user_id)
 
-        await message.answer(
+        await bot.send_message(
+            chat_id,
             f"💾 <b>Post saved:</b> {esc(title)}",
-            reply_markup=builder_menu(updated_draft),
         )
         return
 
