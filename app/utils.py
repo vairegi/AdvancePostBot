@@ -64,35 +64,6 @@ def render_plain_table(table):
     return "<pre>" + esc(table_text) + "</pre>"
 
 
-def render_rich_table(table):
-    headers = table.get("headers") or []
-    rows = table.get("rows") or []
-
-    if not headers and not rows:
-        return ""
-
-    parts = ["<table>"]
-
-    if headers:
-        parts.append("<tr>")
-
-        for header in headers:
-            parts.append("<th>" + esc(str(header)) + "</th>")
-
-        parts.append("</tr>")
-
-    for row in rows:
-        parts.append("<tr>")
-
-        for cell in row:
-            parts.append("<td>" + esc(str(cell)) + "</td>")
-
-        parts.append("</tr>")
-
-    parts.append("</table>")
-    return "".join(parts)
-
-
 def build_caption(draft):
     parts = []
 
@@ -107,46 +78,6 @@ def build_caption(draft):
     return NEWLINE.join(part for part in parts if part)
 
 
-def build_caption_button_html(caption_button_rows):
-    parts = []
-
-    for row in caption_button_rows or []:
-        if not row:
-            continue
-
-        button_tags = []
-
-        for button in row:
-            style = normalize_color(button.get("color"))
-
-            if style:
-                button_tag = (
-                    '<tg-button type="url" url="'
-                    + esc(button["url"])
-                    + '" style="'
-                    + style
-                    + '">'
-                    + esc(button["text"])
-                    + "</tg-button>"
-                )
-            else:
-                button_tag = (
-                    '<tg-button type="url" url="'
-                    + esc(button["url"])
-                    + '">'
-                    + esc(button["text"])
-                    + "</tg-button>"
-                )
-
-            button_tags.append(button_tag)
-
-        parts.append(
-            "<tg-button-row>" + "".join(button_tags) + "</tg-button-row>"
-        )
-
-    return NEWLINE.join(part for part in parts if part)
-
-
 def build_rich_html(draft):
     parts = []
 
@@ -154,16 +85,61 @@ def build_rich_html(draft):
         parts.append(draft["text"])
 
     if draft.get("table"):
-        rich_table = render_rich_table(draft["table"])
-        if rich_table:
-            parts.append(rich_table)
+        headers = draft["table"].get("headers") or []
+        rows = draft["table"].get("rows") or []
 
-    caption_buttons = build_caption_button_html(
-        draft.get("caption_button_rows")
-    )
+        if headers or rows:
+            table_parts = ["<table>"]
 
-    if caption_buttons:
-        parts.append(caption_buttons)
+            if headers:
+                table_parts.append("<tr>")
+
+                for header in headers:
+                    table_parts.append(
+                        "<th>" + esc(str(header)) + "</th>"
+                    )
+
+                table_parts.append("</tr>")
+
+            for row in rows:
+                table_parts.append("<tr>")
+
+                for cell in row:
+                    table_parts.append(
+                        "<td>" + esc(str(cell)) + "</td>"
+                    )
+
+                table_parts.append("</tr>")
+
+            table_parts.append("</table>")
+            parts.append("".join(table_parts))
+
+    for row in draft.get("caption_button_rows") or []:
+        if not row:
+            continue
+
+        button_tags = []
+
+        for button in row:
+            style = normalize_color(button.get("color"))
+            style_attr = ""
+
+            if style:
+                style_attr = ' style="' + style + '"'
+
+            button_tags.append(
+                '<tg-button type="url" url="'
+                + esc(button["url"])
+                + '"'
+                + style_attr
+                + ">"
+                + esc(button["text"])
+                + "</tg-button>"
+            )
+
+        parts.append(
+            "<tg-button-row>" + "".join(button_tags) + "</tg-button-row>"
+        )
 
     return NEWLINE.join(part for part in parts if part)
 

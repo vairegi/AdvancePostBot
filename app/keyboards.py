@@ -1,4 +1,4 @@
-from aiogram.types import InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
@@ -20,236 +20,154 @@ def styled_button(text, callback_data, style=None):
 
 
 def main_menu():
-    keyboard = InlineKeyboardBuilder()
-    keyboard.row(
-        styled_button("Create Post", "menu:create", "success")
-    )
-    keyboard.row(
-        styled_button("My Channels", "menu:channels", "primary"),
-        styled_button("Saved Posts", "menu:saved", "primary"),
-    )
-    keyboard.row(
-        styled_button("Help", "menu:help", "primary"),
-        styled_button("Refresh", "menu:main", "primary"),
-    )
-    return keyboard.as_markup()
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🛠 Create Post", callback_data="menu:create")
+    builder.button(text="📺 My Channels", callback_data="menu:channels")
+    builder.button(text="💾 Saved Posts", callback_data="menu:saved")
+    builder.button(text="❓ Help", callback_data="menu:help")
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 def draft_choice_menu():
-    keyboard = InlineKeyboardBuilder()
-    keyboard.row(
-        styled_button("Continue Editing", "post:continue", "success")
-    )
-    keyboard.row(
-        styled_button("Start New Post", "post:new", "danger")
-    )
-    keyboard.row(
-        styled_button("Main Menu", "menu:main", "primary")
-    )
-    return keyboard.as_markup()
+    builder = InlineKeyboardBuilder()
+    builder.button(text="▶️ Continue Editing", callback_data="post:continue")
+    builder.button(text="🆕 Start New Post", callback_data="post:new")
+    builder.button(text="⬅️ Back", callback_data="menu:main")
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 def builder_menu(draft):
-    keyboard = InlineKeyboardBuilder()
-    keyboard.row(
-        styled_button("Add Caption", "edit:text", "primary"),
-        styled_button("Add Media", "edit:media", "primary"),
-    )
-    keyboard.row(
-        styled_button("Add Buttons", "btns:menu", "success"),
-        styled_button("Add Table", "edit:table", "primary"),
-    )
-    keyboard.row(
-        styled_button("Select Channel", "edit:channel", "primary"),
-        styled_button("Auto Delete", "edit:autodelete", "primary"),
-    )
-    keyboard.row(
-        styled_button(
-            "Silent: " + ("ON" if draft.get("silent") else "OFF"),
-            "edit:silent",
-            "primary",
-        ),
-        styled_button(
-            "Rich Mode: " + ("ON" if draft.get("rich_mode") else "OFF"),
-            "edit:rich",
-            "success" if draft.get("rich_mode") else "primary",
-        ),
-    )
-    keyboard.row(
-        styled_button("Preview", "post:preview", "primary"),
-        styled_button("Save Post", "post:save", "success"),
-    )
-    keyboard.row(
-        styled_button("Publish Now", "post:publish", "success")
-    )
-    keyboard.row(
-        styled_button("Reset Post", "post:reset", "danger"),
-        styled_button("Main Menu", "menu:main", "primary"),
-    )
-    return keyboard.as_markup()
+    builder = InlineKeyboardBuilder()
+    builder.button(text="📝 Add Caption", callback_data="edit:text")
+    builder.button(text="🖼 Add Media", callback_data="edit:media")
+    builder.button(text="🔗 Add Buttons", callback_data="btns:menu")
+    builder.button(text="📊 Add Table", callback_data="edit:table")
+    builder.button(text="📺 Select Channel", callback_data="edit:channel")
+    builder.button(text="⏱ Auto Delete", callback_data="edit:autodelete")
+
+    silent_text = "🔕 Silent: ON" if draft.get("silent") else "🔔 Silent: OFF"
+    builder.button(text=silent_text, callback_data="edit:silent")
+
+    builder.button(text="👁 Refresh Preview", callback_data="post:preview")
+    builder.button(text="💾 Save Post", callback_data="post:save")
+    builder.button(text="🚀 Publish Now", callback_data="post:publish")
+    builder.button(text="🆕 New Post", callback_data="post:reset")
+    builder.button(text="🏠 Main Menu", callback_data="menu:main")
+    builder.adjust(2, 2, 2, 1, 1, 1, 1, 1)
+    return builder.as_markup()
 
 
 def buttons_menu():
-    keyboard = InlineKeyboardBuilder()
-    keyboard.row(
-        styled_button("Add Inline Buttons", "btns:inline", "primary")
-    )
-    keyboard.row(
-        styled_button("Add Caption Buttons", "btns:caption", "success")
-    )
-    keyboard.row(
-        styled_button("Back to Post Builder", "menu:create", "primary")
-    )
-    return keyboard.as_markup()
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🔗 Inline Buttons", callback_data="btns:inline")
+    builder.button(text="✨ Caption Buttons", callback_data="btns:caption")
+    builder.button(text="⬅️ Back to Builder", callback_data="post:back")
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 def back_to_builder():
-    keyboard = InlineKeyboardBuilder()
-    keyboard.row(
-        styled_button("Back to Post Builder", "menu:create", "primary")
-    )
-    keyboard.row(
-        styled_button("Main Menu", "menu:main", "primary")
-    )
-    return keyboard.as_markup()
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⬅️ Back to Builder", callback_data="post:back")
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 def back_to_buttons_menu():
-    keyboard = InlineKeyboardBuilder()
-    keyboard.row(
-        styled_button("Back to Buttons Menu", "btns:menu", "primary")
-    )
-    keyboard.row(
-        styled_button("Back to Post Builder", "menu:create", "primary")
-    )
-    return keyboard.as_markup()
+    builder = InlineKeyboardBuilder()
+    builder.button(text="⬅️ Back to Buttons", callback_data="btns:menu")
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 def channels_menu(channels):
-    keyboard = InlineKeyboardBuilder()
+    builder = InlineKeyboardBuilder()
 
     for channel in channels:
-        keyboard.row(
-            styled_button(
-                str(channel.get("title") or channel["chat_id"]),
-                "pickch:" + str(channel["chat_id"]),
-                "primary",
-            )
+        title = channel.get("title") or str(channel.get("chat_id"))
+        builder.button(
+            text="📺 " + title,
+            callback_data="pickch:" + str(channel.get("chat_id")),
         )
 
-    keyboard.row(
-        styled_button("Add Channel", "ch:add", "success")
-    )
-    keyboard.row(
-        styled_button("Back", "menu:main", "primary")
-    )
-    return keyboard.as_markup()
+    builder.button(text="➕ Add Channel", callback_data="ch:add")
+    builder.button(text="⬅️ Back", callback_data="menu:main")
+    builder.adjust(1)
+    return builder.as_markup()
 
 
-def channel_select_menu(channels, current_channel_id):
-    keyboard = InlineKeyboardBuilder()
+def channel_select_menu(channels, selected_channel_id=None):
+    builder = InlineKeyboardBuilder()
 
     for channel in channels:
-        if channel["chat_id"] == current_channel_id:
-            marker = "Selected"
-            style = "success"
-        else:
-            marker = "Select"
-            style = "primary"
+        title = channel.get("title") or str(channel.get("chat_id"))
+        chat_id = channel.get("chat_id")
 
-        keyboard.row(
-            styled_button(
-                marker + " - " + str(channel.get("title") or channel["chat_id"]),
-                "pickch:" + str(channel["chat_id"]),
-                style,
-            )
+        if selected_channel_id is not None and chat_id == selected_channel_id:
+            title = "✅ " + title
+
+        builder.button(
+            text=title,
+            callback_data="pickch:" + str(chat_id),
         )
 
-    keyboard.row(
-        styled_button("Add New Channel", "ch:add", "success")
-    )
-    keyboard.row(
-        styled_button("Back to Post Builder", "menu:create", "primary")
-    )
-    return keyboard.as_markup()
+    builder.button(text="➕ Add Channel", callback_data="ch:add")
+    builder.button(text="⬅️ Back to Builder", callback_data="post:back")
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 def autodelete_menu():
-    keyboard = InlineKeyboardBuilder()
-    options = (
-        ("Permanent", 0, "primary"),
-        ("1 Minute", 60, "primary"),
-        ("10 Minutes", 600, "primary"),
-        ("1 Hour", 3600, "danger"),
-        ("24 Hours", 86400, "danger"),
-    )
-
-    for label, seconds, style in options:
-        keyboard.row(
-            styled_button(
-                label,
-                "autodel:" + str(seconds),
-                style,
-            )
-        )
-
-    keyboard.row(
-        styled_button("Back to Post Builder", "menu:create", "primary")
-    )
-    return keyboard.as_markup()
+    builder = InlineKeyboardBuilder()
+    builder.button(text="♾ Permanent", callback_data="autodel:0")
+    builder.button(text="5 Minutes", callback_data="autodel:300")
+    builder.button(text="1 Hour", callback_data="autodel:3600")
+    builder.button(text="1 Day", callback_data="autodel:86400")
+    builder.button(text="1 Week", callback_data="autodel:604800")
+    builder.button(text="⬅️ Back to Builder", callback_data="post:back")
+    builder.adjust(2, 2, 1, 1)
+    return builder.as_markup()
 
 
-def media_menu(has_media=False):
-    keyboard = InlineKeyboardBuilder()
+def media_menu(has_media):
+    builder = InlineKeyboardBuilder()
 
     if has_media:
-        keyboard.row(
-            styled_button("Remove Media", "media:remove", "danger")
-        )
+        builder.button(text="🗑 Remove Media", callback_data="media:remove")
 
-    keyboard.row(
-        styled_button("Back to Post Builder", "menu:create", "primary")
-    )
-    return keyboard.as_markup()
+    builder.button(text="⬅️ Back to Builder", callback_data="post:back")
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 def saved_posts_menu(posts):
-    keyboard = InlineKeyboardBuilder()
+    builder = InlineKeyboardBuilder()
 
     for post in posts:
-        title = (post.get("title") or "Untitled")[:30]
-        keyboard.row(
-            styled_button(
-                "Load - " + title,
-                "loadpost:" + str(post["_id"]),
-                "primary",
-            )
+        title = post.get("title") or "Untitled Post"
+        builder.button(
+            text="💾 " + title,
+            callback_data="loadpost:" + str(post.get("_id")),
         )
 
-    keyboard.row(
-        styled_button("Back", "menu:main", "primary")
-    )
-    return keyboard.as_markup()
+    builder.button(text="⬅️ Back", callback_data="menu:main")
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 def confirm_publish(channel_title, auto_delete):
-    keyboard = InlineKeyboardBuilder()
-    keyboard.row(
-        styled_button("Yes, Publish Now", "post:publish_confirm", "success")
-    )
-    keyboard.row(
-        styled_button("Edit Post", "menu:create", "primary"),
-        styled_button("Main Menu", "menu:main", "primary"),
-    )
-    return keyboard.as_markup()
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🚀 Yes, Publish Now", callback_data="post:publish_confirm")
+    builder.button(text="❌ Cancel", callback_data="post:back")
+    builder.adjust(1)
+    return builder.as_markup()
 
 
 def published_menu():
-    keyboard = InlineKeyboardBuilder()
-    keyboard.row(
-        styled_button("Create Another Post", "menu:create", "success")
-    )
-    keyboard.row(
-        styled_button("Main Menu", "menu:main", "primary")
-    )
-    return keyboard.as_markup()
+    builder = InlineKeyboardBuilder()
+    builder.button(text="🆕 Create New Post", callback_data="post:new")
+    builder.button(text="🏠 Main Menu", callback_data="menu:main")
+    builder.adjust(1)
+    return builder.as_markup()

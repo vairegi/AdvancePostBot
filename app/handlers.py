@@ -133,9 +133,31 @@ async def refresh_builder(bot: Bot, chat_id: int, user_id: int):
 
     caption = build_caption(draft)
     keyboard = post_keyboard(draft)
+    has_rich_content = bool(
+        draft.get("caption_button_rows") or draft.get("table")
+    )
 
     try:
-        if draft.get("media_file_id"):
+        if has_rich_content:
+            rich_html = build_rich_html(draft)
+
+            if rich_html:
+                preview = await bot.send_rich_message(
+                    chat_id,
+                    rich_message=InputRichMessage(html=rich_html),
+                    reply_markup=keyboard,
+                )
+            else:
+                preview = await bot.send_message(
+                    chat_id,
+                    "👁 <b>LIVE PREVIEW</b>"
+                    + NEWLINE
+                    + NEWLINE
+                    + "<i>No caption added yet.</i>",
+                    reply_markup=keyboard,
+                )
+
+        elif draft.get("media_file_id"):
             media_type = draft.get("media_type")
             file_id = draft["media_file_id"]
             media_caption = caption or "No caption added yet."
@@ -232,18 +254,14 @@ async def refresh_builder_from_callback(callback: CallbackQuery):
 
 def post_keyboard(draft):
     draft = convert_old_buttons_to_rows(draft)
+    button_rows = draft.get("button_rows") or []
 
-    inline_rows = list(draft.get("button_rows") or [])
-    caption_rows = list(draft.get("caption_button_rows") or [])
-
-    all_rows = inline_rows + caption_rows
-
-    if not all_rows:
+    if not button_rows:
         return None
 
     keyboard_rows = []
 
-    for row in all_rows:
+    for row in button_rows:
         inline_row = []
 
         for button in row:
@@ -251,6 +269,7 @@ def post_keyboard(draft):
                 InlineKeyboardButton(
                     text=button["text"],
                     url=button["url"],
+                    style=button.get("color"),
                 )
             )
 
@@ -284,9 +303,10 @@ Telegram HTML is supported:
 ━━━━━━━━━━━━━━━━━━━━
 
 <b>Inline Buttons</b> appear below the post.
+Colors: blue, green, red.
 
-<b>Caption Buttons</b> also appear below the post, after inline buttons.
-Their colors are used only if the Rich Message format supports them.
+<b>Caption Buttons</b> appear inside the Rich Message.
+Colors: blue, green, red.
 
 Each line creates one button row.
 
@@ -435,6 +455,12 @@ async def new_post_callback(callback: CallbackQuery):
 
     await refresh_builder_from_callback(callback)
     await callback.answer("New post started ✅")
+
+
+@router.callback_query(F.data == "post:back")
+async def back_to_builder_callback(callback: CallbackQuery):
+    await refresh_builder_from_callback(callback)
+    await callback.answer()
 
 
 @router.callback_query(F.data == "menu:channels")
@@ -630,7 +656,7 @@ Choose the type of buttons you want to add.
 
 💡 <b>Inline Buttons</b> appear below the post.
 
-💡 <b>Caption Buttons</b> also appear below the post, after inline buttons.""",
+💡 <b>Caption Buttons</b> appear inside the Rich Message.""",
         reply_markup=buttons_menu(),
     )
     await callback.answer()
@@ -648,12 +674,15 @@ async def inline_buttons_callback(callback: CallbackQuery):
 Each line creates one button row.
 
 💡 One button in a row:
-<code>Join Channel | https://t.me/telegram</code>
+<code>Join Channel | https://t.me/telegram | green</code>
 
 💡 Two buttons in one row:
-<code>Visit Website | https://example.com || Help | https://example.com</code>
+<code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
-⚠️ Inline buttons do not support custom colors.
+💡 No color means a normal transparent button:
+<code>Visit Website | https://example.com</code>
+
+💡 Colors: <code>blue</code>, <code>green</code>, <code>red</code>
 
 Send your buttons now.""",
         reply_markup=back_to_buttons_menu(),
@@ -670,7 +699,7 @@ async def caption_buttons_callback(callback: CallbackQuery):
 ✨ <b>ADD CAPTION BUTTONS</b>
 ━━━━━━━━━━━━━━━━━━━━
 
-These buttons appear below the post, after inline buttons.
+These buttons appear inside the Rich Message.
 
 Each line creates one button row.
 
