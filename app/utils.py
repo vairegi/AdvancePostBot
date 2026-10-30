@@ -17,8 +17,15 @@ def esc(text):
 
 
 def normalize_color(color):
-    color = str(color or "blue").strip().lower()
-    return COLOR_MAP.get(color, "primary")
+    color = str(color or "").strip().lower()
+
+    if not color:
+        return None
+
+    if color in ("default", "none", "transparent", "normal"):
+        return None
+
+    return COLOR_MAP.get(color)
 
 
 def render_plain_table(table):
@@ -109,15 +116,26 @@ def build_caption_button_html(caption_button_rows):
         for button in row:
             style = normalize_color(button.get("color"))
 
-            button_tags.append(
-                '<tg-button type="url" url="'
-                + esc(button["url"])
-                + '" style="'
-                + style
-                + '">'
-                + esc(button["text"])
-                + "</tg-button>"
-            )
+            if style:
+                button_tag = (
+                    '<tg-button type="url" url="'
+                    + esc(button["url"])
+                    + '" style="'
+                    + style
+                    + '">'
+                    + esc(button["text"])
+                    + "</tg-button>"
+                )
+            else:
+                button_tag = (
+                    '<tg-button type="url" url="'
+                    + esc(button["url"])
+                    + '">'
+                    + esc(button["text"])
+                    + "</tg-button>"
+                )
+
+            button_tags.append(button_tag)
 
         parts.append(
             "<tg-button-row>" + "".join(button_tags) + "</tg-button-row>"
@@ -197,7 +215,11 @@ def parse_button_rows(raw_text):
 
             label = parts[0]
             url = parts[1]
-            color = parts[2] if len(parts) >= 3 else "blue"
+
+            if len(parts) >= 3:
+                color = parts[2]
+            else:
+                color = ""
 
             if not label:
                 continue
@@ -239,7 +261,7 @@ def convert_old_buttons_to_rows(draft):
                 {
                     "text": button.get("text", "Button"),
                     "url": button.get("url", "https://t.me/telegram"),
-                    "color": normalize_color(button.get("style", "blue")),
+                    "color": normalize_color(button.get("style", "")),
                 }
             )
 

@@ -121,23 +121,7 @@ Every change you make will update the preview automatically.
 📺 <b>Channel:</b> {channel}
 ⏱ <b>Auto Delete:</b> {auto_delete}
 🔕 <b>Silent:</b> {silent}
-✨ <b>Rich Mode:</b> {rich_mode}
-
-━━━━━━━━━━━━━━━━━━━━
-💡 <b>QUICK GUIDE</b>
-━━━━━━━━━━━━━━━━━━━━
-
-💡 <b>Add Caption</b> — Add your post text
-
-💡 <b>Add Media</b> — Add a photo, video, document or audio
-
-💡 <b>Add Buttons</b> — Add inline buttons or colored caption buttons
-
-💡 <b>Add Table</b> — Create a clean table
-
-💡 <b>Select Channel</b> — Choose where to publish
-
-💡 <b>Publish Now</b> — Publish the post to your channel"""
+✨ <b>Rich Mode:</b> {rich_mode}"""
 
 
 async def refresh_builder(bot: Bot, chat_id: int, user_id: int):
@@ -306,17 +290,13 @@ Each line creates one button row.
 💡 Two buttons in one row:
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
-💡 One button, then two buttons, then one button:
-<code>Join Channel | https://t.me/telegram | green</code>
-<code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
-<code>Join Channel | https://t.me/telegram | green</code>
+💡 No color means a normal transparent button:
+<code>Visit Website | https://example.com</code>
 
 Colors:
 <code>blue</code>
 <code>green</code>
 <code>red</code>
-
-If color is not entered, <code>blue</code> is used.
 
 ━━━━━━━━━━━━━━━━━━━━
 <b>4. Add Table</b>
@@ -334,8 +314,10 @@ Separate columns using <code>|</code>.
 <b>5. Rich Mode</b>
 ━━━━━━━━━━━━━━━━━━━━
 
-Turn Rich Mode ON to publish a Rich Message.
+Rich Mode publishes a Rich Message.
 It supports a real styled table and colored caption buttons.
+
+Caption Buttons automatically turn Rich Mode ON.
 
 ━━━━━━━━━━━━━━━━━━━━
 <b>6. Publish</b>
@@ -679,6 +661,9 @@ Each line creates one button row.
 💡 Two buttons in one row:
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
+💡 No color means a normal transparent button:
+<code>Visit Website | https://example.com</code>
+
 💡 Colors: <code>blue</code>, <code>green</code>, <code>red</code>
 
 Send your buttons now.""",
@@ -705,6 +690,9 @@ Each line creates one button row.
 
 💡 Two buttons in one row:
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
+
+💡 No color means a normal transparent button:
+<code>Visit Website | https://example.com</code>
 
 💡 Colors: <code>blue</code>, <code>green</code>, <code>red</code>
 
@@ -1171,21 +1159,30 @@ Each line is one row.
 💡 Two buttons in one row:
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
-💡 Colors: blue, green, red"""
+💡 No color means a normal transparent button:
+<code>Visit Website | https://example.com</code>"""
             )
             return
 
         if waiting_for == "inline_buttons":
             field = "button_rows"
             button_type = "Inline buttons"
+            rich_mode = draft.get("rich_mode", False)
         else:
             field = "caption_button_rows"
             button_type = "Caption buttons"
+            rich_mode = True
 
         row_count = len(button_rows)
         button_count = sum(len(row) for row in button_rows)
 
-        await save_draft(user_id, {field: button_rows})
+        await save_draft(
+            user_id,
+            {
+                field: button_rows,
+                "rich_mode": rich_mode,
+            },
+        )
 
         await delete_message_safe(bot, chat_id, message.message_id)
         await refresh_builder(bot, chat_id, user_id)
