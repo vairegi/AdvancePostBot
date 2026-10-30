@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timezone
 from bson import ObjectId
 
@@ -41,6 +42,7 @@ from app.utils import (
     esc,
 )
 
+logger = logging.getLogger(__name__)
 router = Router()
 
 
@@ -100,7 +102,6 @@ def builder_text(draft):
     channel = esc(draft.get("channel_title") or "Not selected")
     auto_delete = esc(human_time(draft.get("auto_delete_seconds")))
     silent = "ON" if draft.get("silent") else "OFF"
-    rich_mode = "ON" if draft.get("rich_mode") else "OFF"
 
     return f"""━━━━━━━━━━━━━━━━━━━━
 🛠 <b>ADVANCED POST BUILDER</b>
@@ -120,8 +121,7 @@ Every change you make will update the preview automatically.
 📊 <b>Table:</b> {table}
 📺 <b>Channel:</b> {channel}
 ⏱ <b>Auto Delete:</b> {auto_delete}
-🔕 <b>Silent:</b> {silent}
-✨ <b>Rich Mode:</b> {rich_mode}"""
+🔕 <b>Silent:</b> {silent}"""
 
 
 async def refresh_builder(bot: Bot, chat_id: int, user_id: int):
@@ -135,26 +135,7 @@ async def refresh_builder(bot: Bot, chat_id: int, user_id: int):
     keyboard = post_keyboard(draft)
 
     try:
-        if draft.get("rich_mode") and not draft.get("media_file_id"):
-            rich_html = build_rich_html(draft)
-
-            if rich_html:
-                preview = await bot.send_rich_message(
-                    chat_id,
-                    rich_message=InputRichMessage(html=rich_html),
-                    reply_markup=keyboard,
-                )
-            else:
-                preview = await bot.send_message(
-                    chat_id,
-                    "👁 <b>LIVE PREVIEW</b>"
-                    + NEWLINE
-                    + NEWLINE
-                    + "<i>No caption added yet.</i>",
-                    reply_markup=keyboard,
-                )
-
-        elif draft.get("media_file_id"):
+        if draft.get("media_file_id"):
             media_type = draft.get("media_type")
             file_id = draft["media_file_id"]
             media_caption = caption or "No caption added yet."
@@ -251,14 +232,18 @@ async def refresh_builder_from_callback(callback: CallbackQuery):
 
 def post_keyboard(draft):
     draft = convert_old_buttons_to_rows(draft)
-    button_rows = draft.get("button_rows") or []
 
-    if not button_rows:
+    inline_rows = list(draft.get("button_rows") or [])
+    caption_rows = list(draft.get("caption_button_rows") or [])
+
+    all_rows = inline_rows + caption_rows
+
+    if not all_rows:
         return None
 
-    inline_rows = []
+    keyboard_rows = []
 
-    for row in button_rows:
+    for row in all_rows:
         inline_row = []
 
         for button in row:
@@ -269,9 +254,9 @@ def post_keyboard(draft):
                 )
             )
 
-        inline_rows.append(inline_row)
+        keyboard_rows.append(inline_row)
 
-    return InlineKeyboardMarkup(inline_keyboard=inline_rows)
+    return InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
 
 
 HELP_TEXT = """━━━━━━━━━━━━━━━━━━━━
@@ -299,10 +284,9 @@ Telegram HTML is supported:
 ━━━━━━━━━━━━━━━━━━━━
 
 <b>Inline Buttons</b> appear below the post.
-They do not support custom colors.
 
-<b>Caption Buttons</b> appear inside a Rich Message.
-They support colors: blue, green, red.
+<b>Caption Buttons</b> also appear below the post, after inline buttons.
+Their colors are used only if the Rich Message format supports them.
 
 Each line creates one button row.
 
@@ -328,16 +312,7 @@ Separate columns using <code>|</code>.
 <code>Mango | $1.20</code>
 
 ━━━━━━━━━━━━━━━━━━━━
-<b>5. Rich Mode</b>
-━━━━━━━━━━━━━━━━━━━━
-
-Rich Mode publishes a Rich Message.
-It supports a real styled table and colored caption buttons.
-
-Caption Buttons automatically turn Rich Mode ON.
-
-━━━━━━━━━━━━━━━━━━━━
-<b>6. Publish</b>
+<b>5. Publish</b>
 ━━━━━━━━━━━━━━━━━━━━
 
 Select a channel, check the live preview, then tap Publish Now."""
@@ -654,9 +629,8 @@ async def buttons_menu_callback(callback: CallbackQuery):
 Choose the type of buttons you want to add.
 
 💡 <b>Inline Buttons</b> appear below the post.
-They do not support custom colors.
 
-💡 <b>Caption Buttons</b> appear inside a Rich Message and support colors.""",
+💡 <b>Caption Buttons</b> also appear below the post, after inline buttons.""",
         reply_markup=buttons_menu(),
     )
     await callback.answer()
@@ -696,7 +670,7 @@ async def caption_buttons_callback(callback: CallbackQuery):
 ✨ <b>ADD CAPTION BUTTONS</b>
 ━━━━━━━━━━━━━━━━━━━━
 
-These buttons appear inside a Rich Message.
+These buttons appear below the post, after inline buttons.
 
 Each line creates one button row.
 
@@ -732,9 +706,7 @@ Separate columns using <code>|</code>.
 💡 Example:
 <code>Product | Price</code>
 <code>Apple | $1.00</code>
-<code>Mango | $1.20</code>
-
-With Rich Mode ON, this becomes a real styled table.""",
+<code>Mango | $1.20</code>""",
         reply_markup=back_to_builder(),
     )
     await callback.answer()
@@ -798,19 +770,6 @@ async def toggle_silent_callback(callback: CallbackQuery):
 
     await refresh_builder_from_callback(callback)
     await callback.answer("Silent mode updated ✅")
-
-
-@router.callback_query(F.data == "edit:rich")
-async def toggle_rich_callback(callback: CallbackQuery):
-    draft = await get_draft(callback.from_user.id)
-
-    await save_draft(
-        callback.from_user.id,
-        {"rich_mode": not draft.get("rich_mode", False)},
-    )
-
-    await refresh_builder_from_callback(callback)
-    await callback.answer("Rich Mode updated ✅")
 
 
 @router.callback_query(F.data == "post:reset")
@@ -951,7 +910,6 @@ async def publish_callback(callback: CallbackQuery):
 
 📺 <b>Channel:</b> {esc(channel_title)}
 ⏱ <b>Auto Delete:</b> {esc(auto_delete)}
-✨ <b>Rich Mode:</b> {'ON' if draft.get('rich_mode') else 'OFF'}
 
 Do you want to publish this post?""",
         reply_markup=confirm_publish(channel_title, auto_delete),
@@ -964,23 +922,29 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
     draft = await get_draft(callback.from_user.id)
     draft = convert_old_buttons_to_rows(draft)
 
+    keyboard = post_keyboard(draft)
     sent_message = None
-    rich_failed = False
 
     try:
-        if draft.get("rich_mode"):
-            rich_html = build_rich_html(draft)
+        rich_html = build_rich_html(draft)
 
-            if rich_html:
-                try:
-                    sent_message = await bot.send_rich_message(
-                        draft["channel_id"],
-                        rich_message=InputRichMessage(html=rich_html),
-                        reply_markup=post_keyboard(draft),
-                        disable_notification=draft.get("silent", False),
-                    )
-                except Exception:
-                    rich_failed = True
+        if rich_html:
+            try:
+                sent_message = await bot.send_rich_message(
+                    draft["channel_id"],
+                    rich_message=InputRichMessage(html=rich_html),
+                    reply_markup=keyboard,
+                    disable_notification=draft.get("silent", False),
+                )
+                logger.info(
+                    "Rich message published. HTML length: %s",
+                    len(rich_html),
+                )
+            except Exception as rich_error:
+                logger.warning(
+                    "Rich message failed, using normal message: %s",
+                    rich_error,
+                )
 
         if sent_message is None:
             if draft.get("media_file_id"):
@@ -989,16 +953,17 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
                     draft["channel_id"],
                     draft,
                     build_caption(draft),
-                    post_keyboard(draft),
+                    keyboard,
                 )
             else:
                 sent_message = await bot.send_message(
                     draft["channel_id"],
                     build_caption(draft),
-                    reply_markup=post_keyboard(draft),
+                    reply_markup=keyboard,
                     disable_notification=draft.get("silent", False),
                 )
     except Exception as error:
+        logger.exception("Publish failed")
         await callback.answer(
             f"Publish failed: {str(error)[:150]}",
             show_alert=True,
@@ -1022,7 +987,6 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
     )
 
     channel_title = draft.get("channel_title") or str(draft["channel_id"])
-    rich_status = "ON" if draft.get("rich_mode") and not rich_failed else "OFF"
 
     await callback.message.edit_text(
         f"""━━━━━━━━━━━━━━━━━━━━
@@ -1030,8 +994,7 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
 ━━━━━━━━━━━━━━━━━━━━
 
 📺 <b>Channel:</b> {esc(channel_title)}
-⏱ <b>Auto Delete:</b> {esc(human_time(draft.get('auto_delete_seconds')))}
-✨ <b>Rich Mode:</b> {rich_status}""",
+⏱ <b>Auto Delete:</b> {esc(human_time(draft.get('auto_delete_seconds')))}""",
         reply_markup=published_menu(),
     )
     await callback.answer("Published ✅")
@@ -1193,22 +1156,14 @@ Each line is one row.
         if waiting_for == "inline_buttons":
             field = "button_rows"
             button_type = "Inline buttons"
-            rich_mode = draft.get("rich_mode", False)
         else:
             field = "caption_button_rows"
             button_type = "Caption buttons"
-            rich_mode = True
 
         row_count = len(button_rows)
         button_count = sum(len(row) for row in button_rows)
 
-        await save_draft(
-            user_id,
-            {
-                field: button_rows,
-                "rich_mode": rich_mode,
-            },
-        )
+        await save_draft(user_id, {field: button_rows})
 
         await delete_message_safe(bot, chat_id, message.message_id)
         await refresh_builder(bot, chat_id, user_id)
