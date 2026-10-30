@@ -18,7 +18,9 @@ from app import db
 from app.keyboards import (
     main_menu,
     builder_menu,
+    buttons_menu,
     back_to_builder,
+    back_to_buttons_menu,
     channels_menu,
     channel_select_menu,
     autodelete_menu,
@@ -76,11 +78,11 @@ def builder_text(draft):
     caption = "Added" if draft.get("text") else "Not added"
     media = esc(draft.get("media_type") or "No media")
 
-    inline_rows = draft.get("inline_button_rows") or []
-    caption_rows = draft.get("caption_button_rows") or []
-
+    inline_rows = draft.get("button_rows") or []
     inline_count = sum(len(row) for row in inline_rows)
-    caption_count = sum(len(row) for row in caption_rows)
+
+    caption_rows = draft.get("caption_button_rows") or []
+    caption_button_count = sum(len(row) for row in caption_rows)
 
     table = "Yes" if draft.get("table") else "No"
     channel = esc(draft.get("channel_title") or "Not selected")
@@ -88,21 +90,28 @@ def builder_text(draft):
     silent = "ON" if draft.get("silent") else "OFF"
     rich_mode = "ON" if draft.get("rich_mode") else "OFF"
 
-    return f"""🛠 <b>Advanced Post Builder</b>
+    return f"""━━━━━━━━━━━━━━━━━━━━
+🛠 <b>ADVANCED POST BUILDER</b>
+━━━━━━━━━━━━━━━━━━━━
 
-Create your post step by step.
+Create a professional post for your channel.
+
+━━━━━━━━━━━━━━━━━━━━
+<b>POST DETAILS</b>
+━━━━━━━━━━━━━━━━━━━━
 
 📝 <b>Caption:</b> {caption}
 🖼 <b>Media:</b> {media}
 🔗 <b>Inline Buttons:</b> {inline_count} buttons in {len(inline_rows)} rows
-✨ <b>Caption Buttons:</b> {caption_count} buttons in {len(caption_rows)} rows
+✨ <b>Caption Buttons:</b> {caption_button_count} buttons in {len(caption_rows)} rows
 📊 <b>Table:</b> {table}
 📺 <b>Channel:</b> {channel}
 ⏱ <b>Auto Delete:</b> {auto_delete}
 🔕 <b>Silent:</b> {silent}
 ✨ <b>Rich Mode:</b> {rich_mode}
 
-<i>Inline buttons appear below the post. Caption buttons appear inside a Rich Message.</i>"""
+━━━━━━━━━━━━━━━━━━━━
+<i>Choose an option below to continue.</i>"""
 
 
 async def show_builder(callback_or_message, user_id):
@@ -125,40 +134,58 @@ async def show_builder(callback_or_message, user_id):
         await callback_or_message.answer(text, reply_markup=keyboard)
 
 
-HELP_TEXT = """❓ <b>How to Use</b>
+HELP_TEXT = """━━━━━━━━━━━━━━━━━━━━
+❓ <b>HOW TO USE</b>
+━━━━━━━━━━━━━━━━━━━━
 
 <b>1. Add a Channel</b>
 Make the bot an administrator in your channel and enable Post Messages permission.
+
 Then open <b>My Channels -> Add Channel</b> and send <code>@channelusername</code>, or forward any message from the channel.
 
-<b>2. Caption</b>
+━━━━━━━━━━━━━━━━━━━━
+<b>2. Add Caption</b>
+━━━━━━━━━━━━━━━━━━━━
+
 Telegram HTML is supported:
+
 <code>&lt;b&gt;Bold&lt;/b&gt;</code>
 <code>&lt;i&gt;Italic&lt;/i&gt;</code>
 <code>&lt;u&gt;Underline&lt;/u&gt;</code>
 <code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>
 
-<b>3. Inline Buttons</b>
-These buttons appear below the post.
+━━━━━━━━━━━━━━━━━━━━
+<b>3. Add Buttons</b>
+━━━━━━━━━━━━━━━━━━━━
+
+<b>Inline Buttons</b> appear below the post.
+
+<b>Caption Buttons</b> appear inside a Rich Message.
 
 Each line creates one button row.
-Use <code>||</code> to place multiple buttons in the same row.
 
-One button:
+One button in a row:
 <code>Join Channel | https://t.me/telegram | green</code>
 
 Two buttons in one row:
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
-Colors: <code>blue</code>, <code>green</code>, <code>red</code>
+One button, then two buttons, then one button:
+<code>Join Channel | https://t.me/telegram | green</code>
+<code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
+<code>Join Channel | https://t.me/telegram | green</code>
 
-<b>4. Caption Buttons</b>
-These buttons appear inside a Rich Message.
-They work when Rich Mode is ON and the post has no media.
+Colors:
+<code>blue</code>
+<code>green</code>
+<code>red</code>
 
-Use the same format as Inline Buttons.
+If color is not entered, <code>blue</code> is used.
 
-<b>5. Table</b>
+━━━━━━━━━━━━━━━━━━━━
+<b>4. Add Table</b>
+━━━━━━━━━━━━━━━━━━━━
+
 The first line is the header. Other lines are rows.
 Separate columns using <code>|</code>.
 
@@ -167,11 +194,17 @@ Example:
 <code>Apple | $1.00</code>
 <code>Mango | $1.20</code>
 
-<b>6. Rich Mode</b>
-ON: Sends a Rich Message with a real styled table and caption buttons.
-OFF: Sends a normal post with colored inline buttons.
+━━━━━━━━━━━━━━━━━━━━
+<b>5. Rich Mode</b>
+━━━━━━━━━━━━━━━━━━━━
 
-<b>7. Publish</b>
+Turn Rich Mode ON to publish a Rich Message.
+It supports a real styled table and colored caption buttons.
+
+━━━━━━━━━━━━━━━━━━━━
+<b>6. Publish</b>
+━━━━━━━━━━━━━━━━━━━━
+
 Select a channel, check Preview, then tap Publish Now."""
 
 
@@ -191,14 +224,27 @@ async def start_command(message: Message):
     )
 
     await message.answer(
-        """👋 <b>Welcome to Advanced Post Creator Bot!</b>
+        """━━━━━━━━━━━━━━━━━━━━
+👋 <b>WELCOME</b>
+━━━━━━━━━━━━━━━━━━━━
 
-Use this bot to create professional posts for your Telegram channels.
+<b>Advanced Post Creator Bot</b>
 
-🟢 <b>Create Post</b> — Create a new post
-📺 <b>My Channels</b> — Add or select channels
-💾 <b>Saved Posts</b> — Reuse saved posts
-❓ <b>Help</b> — View the full guide""",
+Create beautiful, professional and rich posts for your Telegram channels.
+
+━━━━━━━━━━━━━━━━━━━━
+<b>WHAT YOU CAN DO</b>
+━━━━━━━━━━━━━━━━━━━━
+
+• Create posts with captions and media
+• Add inline buttons and caption buttons
+• Create clean tables
+• Publish directly to your channels
+• Save and reuse posts
+• Set automatic deletion
+
+━━━━━━━━━━━━━━━━━━━━
+<i>Tap <b>Create Post</b> to get started.</i>""",
         reply_markup=main_menu(),
     )
 
@@ -211,9 +257,11 @@ async def help_command(message: Message):
 @router.callback_query(F.data == "menu:main")
 async def main_menu_callback(callback: CallbackQuery):
     await callback.message.edit_text(
-        """👋 <b>Main Menu</b>
+        """━━━━━━━━━━━━━━━━━━━━
+👋 <b>MAIN MENU</b>
+━━━━━━━━━━━━━━━━━━━━
 
-Choose an option below:""",
+Choose an option below.""",
         reply_markup=main_menu(),
     )
     await callback.answer()
@@ -241,7 +289,9 @@ async def channels_callback(callback: CallbackQuery):
     ).to_list(100)
 
     await callback.message.edit_text(
-        """📺 <b>My Channels</b>
+        """━━━━━━━━━━━━━━━━━━━━
+📺 <b>MY CHANNELS</b>
+━━━━━━━━━━━━━━━━━━━━
 
 Select a channel or add a new one.""",
         reply_markup=channels_menu(channels),
@@ -257,16 +307,20 @@ async def saved_posts_callback(callback: CallbackQuery):
 
     if not posts:
         await callback.message.edit_text(
-            """💾 <b>Saved Posts</b>
+            """━━━━━━━━━━━━━━━━━━━━
+💾 <b>SAVED POSTS</b>
+━━━━━━━━━━━━━━━━━━━━
 
 You have no saved posts yet.
 
-Open the Post Builder and tap <b>💾 Save Post</b>.""",
+Open the Post Builder and tap <b>Save Post</b>.""",
             reply_markup=back_to_builder(),
         )
     else:
         await callback.message.edit_text(
-            """💾 <b>Saved Posts</b>
+            """━━━━━━━━━━━━━━━━━━━━
+💾 <b>SAVED POSTS</b>
+━━━━━━━━━━━━━━━━━━━━
 
 Select a post to load it into the Post Builder.""",
             reply_markup=saved_posts_menu(posts),
@@ -309,7 +363,9 @@ async def add_channel_callback(callback: CallbackQuery):
     await save_draft(callback.from_user.id, {"waiting_for": "channel_add"})
 
     await callback.message.edit_text(
-        """➕ <b>Add Channel</b>
+        """━━━━━━━━━━━━━━━━━━━━
+➕ <b>ADD CHANNEL</b>
+━━━━━━━━━━━━━━━━━━━━
 
 Send your channel username:
 <code>@channelusername</code>
@@ -359,16 +415,18 @@ async def edit_text_callback(callback: CallbackQuery):
     await save_draft(callback.from_user.id, {"waiting_for": "text"})
 
     await callback.message.edit_text(
-        """📝 <b>Send Caption / Text</b>
+        """━━━━━━━━━━━━━━━━━━━━
+📝 <b>ADD CAPTION</b>
+━━━━━━━━━━━━━━━━━━━━
+
+Send your caption or post text now.
 
 Telegram HTML is supported:
 
 <code>&lt;b&gt;Bold&lt;/b&gt;</code>
 <code>&lt;i&gt;Italic&lt;/i&gt;</code>
 <code>&lt;u&gt;Underline&lt;/u&gt;</code>
-<code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>
-
-Send your caption now.""",
+<code>&lt;a href="https://example.com"&gt;Link&lt;/a&gt;</code>""",
         reply_markup=back_to_builder(),
     )
     await callback.answer()
@@ -380,7 +438,9 @@ async def edit_media_callback(callback: CallbackQuery):
     await save_draft(callback.from_user.id, {"waiting_for": "media"})
 
     await callback.message.edit_text(
-        """🖼 <b>Send Media</b>
+        """━━━━━━━━━━━━━━━━━━━━
+🖼 <b>ADD MEDIA</b>
+━━━━━━━━━━━━━━━━━━━━
 
 Send a photo, video, audio file, document, or animation.""",
         reply_markup=media_menu(bool(draft.get("media_file_id"))),
@@ -402,49 +462,71 @@ async def remove_media_callback(callback: CallbackQuery):
     await callback.answer("Media removed ✅")
 
 
-@router.callback_query(F.data == "edit:ibuttons")
-async def edit_inline_buttons_callback(callback: CallbackQuery):
+@router.callback_query(F.data == "btns:menu")
+async def buttons_menu_callback(callback: CallbackQuery):
+    await callback.message.edit_text(
+        """━━━━━━━━━━━━━━━━━━━━
+🔗 <b>ADD BUTTONS</b>
+━━━━━━━━━━━━━━━━━━━━
+
+Choose the type of buttons you want to add.
+
+<b>Inline Buttons</b> appear below the post.
+
+<b>Caption Buttons</b> appear inside a Rich Message and support colors.""",
+        reply_markup=buttons_menu(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "btns:inline")
+async def inline_buttons_callback(callback: CallbackQuery):
     await save_draft(callback.from_user.id, {"waiting_for": "inline_buttons"})
 
     await callback.message.edit_text(
-        """🔗 <b>Add Inline Buttons</b>
-
-These buttons will appear below the post.
+        """━━━━━━━━━━━━━━━━━━━━
+🔗 <b>ADD INLINE BUTTONS</b>
+━━━━━━━━━━━━━━━━━━━━
 
 Each line creates one button row.
-Use <code>||</code> for multiple buttons in the same row.
 
-One button:
+One button in a row:
 <code>Join Channel | https://t.me/telegram | green</code>
 
 Two buttons in one row:
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
-Colors: <code>blue</code>, <code>green</code>, <code>red</code>""",
-        reply_markup=back_to_builder(),
+Colors: <code>blue</code>, <code>green</code>, <code>red</code>
+
+Send your buttons now.""",
+        reply_markup=back_to_buttons_menu(),
     )
     await callback.answer()
 
 
-@router.callback_query(F.data == "edit:cbuttons")
-async def edit_caption_buttons_callback(callback: CallbackQuery):
+@router.callback_query(F.data == "btns:caption")
+async def caption_buttons_callback(callback: CallbackQuery):
     await save_draft(callback.from_user.id, {"waiting_for": "caption_buttons"})
 
     await callback.message.edit_text(
-        """✨ <b>Add Caption Buttons</b>
+        """━━━━━━━━━━━━━━━━━━━━
+✨ <b>ADD CAPTION BUTTONS</b>
+━━━━━━━━━━━━━━━━━━━━
 
-These buttons will appear inside a Rich Message.
-Rich Mode must be ON, and the post must not contain media.
+These buttons appear inside a Rich Message.
 
 Each line creates one button row.
-Use <code>||</code> for multiple buttons in the same row.
 
-Example:
+One button in a row:
 <code>Join Channel | https://t.me/telegram | green</code>
+
+Two buttons in one row:
 <code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
 
-Colors: <code>blue</code>, <code>green</code>, <code>red</code>""",
-        reply_markup=back_to_builder(),
+Colors: <code>blue</code>, <code>green</code>, <code>red</code>
+
+Send your caption buttons now.""",
+        reply_markup=back_to_buttons_menu(),
     )
     await callback.answer()
 
@@ -454,7 +536,9 @@ async def edit_table_callback(callback: CallbackQuery):
     await save_draft(callback.from_user.id, {"waiting_for": "table"})
 
     await callback.message.edit_text(
-        """📊 <b>Create a Table</b>
+        """━━━━━━━━━━━━━━━━━━━━
+📊 <b>ADD TABLE</b>
+━━━━━━━━━━━━━━━━━━━━
 
 The first line is the header. Other lines are rows.
 Separate columns using <code>|</code>.
@@ -479,7 +563,9 @@ async def edit_channel_callback(callback: CallbackQuery):
     draft = await get_draft(callback.from_user.id)
 
     await callback.message.edit_text(
-        """📺 <b>Select Post Channel</b>
+        """━━━━━━━━━━━━━━━━━━━━
+📺 <b>SELECT CHANNEL</b>
+━━━━━━━━━━━━━━━━━━━━
 
 Choose the channel where this post will be published.""",
         reply_markup=channel_select_menu(channels, draft.get("channel_id")),
@@ -490,9 +576,11 @@ Choose the channel where this post will be published.""",
 @router.callback_query(F.data == "edit:autodelete")
 async def autodelete_callback(callback: CallbackQuery):
     await callback.message.edit_text(
-        """⏱ <b>Choose Auto Delete</b>
+        """━━━━━━━━━━━━━━━━━━━━
+⏱ <b>AUTO DELETE</b>
+━━━━━━━━━━━━━━━━━━━━
 
-The post will be deleted automatically after publishing.
+Choose when the post should be deleted automatically.
 
 If you choose Permanent, the post will not be deleted.""",
         reply_markup=autodelete_menu(),
@@ -554,42 +642,36 @@ async def reset_post_callback(callback: CallbackQuery):
     await callback.answer("New post started ✅")
 
 
-def build_inline_keyboard(draft):
+def post_keyboard(draft):
     draft = convert_old_buttons_to_rows(draft)
+    button_rows = draft.get("button_rows") or []
 
-    inline_rows = draft.get("inline_button_rows") or []
-    caption_rows = draft.get("caption_button_rows") or []
-
-    all_rows = inline_rows + caption_rows
-
-    if not all_rows:
+    if not button_rows:
         return None
 
-    keyboard_rows = []
+    inline_rows = []
 
-    for row in all_rows:
-        keyboard_row = []
+    for row in button_rows:
+        inline_row = []
 
         for button in row:
-            keyboard_row.append(
+            inline_row.append(
                 InlineKeyboardButton(
                     text=button["text"],
                     url=button["url"],
-                    style=button.get("color", "primary"),
                 )
             )
 
-        keyboard_rows.append(keyboard_row)
+        inline_rows.append(inline_row)
 
-    return InlineKeyboardMarkup(inline_keyboard=keyboard_rows)
+    return InlineKeyboardMarkup(inline_keyboard=inline_rows)
 
 
 @router.callback_query(F.data == "post:preview")
 async def preview_callback(callback: CallbackQuery):
     draft = await get_draft(callback.from_user.id)
-    draft = convert_old_buttons_to_rows(draft)
 
-    if draft.get("rich_mode") and not draft.get("media_file_id"):
+    if draft.get("rich_mode"):
         rich_html = build_rich_html(draft)
 
         if not rich_html:
@@ -601,8 +683,7 @@ async def preview_callback(callback: CallbackQuery):
 
         try:
             await callback.message.answer_rich(
-                InputRichMessage(html=rich_html),
-                reply_markup=build_inline_keyboard(draft),
+                InputRichMessage(html=rich_html)
             )
             await callback.answer("Rich preview sent below ✅")
         except TelegramBadRequest as error:
@@ -613,7 +694,7 @@ async def preview_callback(callback: CallbackQuery):
         return
 
     caption = build_caption(draft) or "<i>(No caption)</i>"
-    keyboard = build_inline_keyboard(draft)
+    keyboard = post_keyboard(draft)
 
     try:
         if draft.get("media_file_id"):
@@ -686,7 +767,11 @@ async def save_post_callback(callback: CallbackQuery):
     await save_draft(callback.from_user.id, {"waiting_for": "save_title"})
 
     await callback.message.edit_text(
-        """💾 <b>Send a Name for This Post</b>
+        """━━━━━━━━━━━━━━━━━━━━
+💾 <b>SAVE POST</b>
+━━━━━━━━━━━━━━━━━━━━
+
+Send a name for this post.
 
 This name will appear only in your Saved Posts.
 
@@ -722,11 +807,13 @@ async def publish_callback(callback: CallbackQuery):
     auto_delete = human_time(draft.get("auto_delete_seconds"))
 
     await callback.message.edit_text(
-        f"""🚀 <b>Publish Confirmation</b>
+        f"""━━━━━━━━━━━━━━━━━━━━
+🚀 <b>PUBLISH POST</b>
+━━━━━━━━━━━━━━━━━━━━
 
-📺 Channel: <b>{esc(channel_title)}</b>
-⏱ Auto Delete: <b>{esc(auto_delete)}</b>
-✨ Rich Mode: <b>{'ON' if draft.get('rich_mode') else 'OFF'}</b>
+📺 <b>Channel:</b> {esc(channel_title)}
+⏱ <b>Auto Delete:</b> {esc(auto_delete)}
+✨ <b>Rich Mode:</b> {'ON' if draft.get('rich_mode') else 'OFF'}
 
 Do you want to publish this post?""",
         reply_markup=confirm_publish(channel_title, auto_delete),
@@ -740,13 +827,12 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
     draft = convert_old_buttons_to_rows(draft)
 
     try:
-        if draft.get("rich_mode") and not draft.get("media_file_id"):
+        if draft.get("rich_mode"):
+            rich_html = build_rich_html(draft)
             sent_message = await bot.send_rich_message(
                 draft["channel_id"],
-                rich_message=InputRichMessage(
-                    html=build_rich_html(draft)
-                ),
-                reply_markup=build_inline_keyboard(draft),
+                rich_message=InputRichMessage(html=rich_html),
+                reply_markup=post_keyboard(draft),
                 disable_notification=draft.get("silent", False),
             )
         elif draft.get("media_file_id"):
@@ -755,13 +841,13 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
                 draft["channel_id"],
                 draft,
                 build_caption(draft),
-                build_inline_keyboard(draft),
+                post_keyboard(draft),
             )
         else:
             sent_message = await bot.send_message(
                 draft["channel_id"],
                 build_caption(draft),
-                reply_markup=build_inline_keyboard(draft),
+                reply_markup=post_keyboard(draft),
                 disable_notification=draft.get("silent", False),
             )
     except Exception as error:
@@ -784,11 +870,13 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
     channel_title = draft.get("channel_title") or str(draft["channel_id"])
 
     await callback.message.edit_text(
-        f"""✅ <b>Post published successfully!</b>
+        f"""━━━━━━━━━━━━━━━━━━━━
+✅ <b>POST PUBLISHED</b>
+━━━━━━━━━━━━━━━━━━━━
 
-📺 Channel: <b>{esc(channel_title)}</b>
-⏱ Auto Delete: <b>{esc(human_time(draft.get('auto_delete_seconds')))}</b>
-✨ Rich Mode: <b>{'ON' if draft.get('rich_mode') else 'OFF'}</b>""",
+📺 <b>Channel:</b> {esc(channel_title)}
+⏱ <b>Auto Delete:</b> {esc(human_time(draft.get('auto_delete_seconds')))}
+✨ <b>Rich Mode:</b> {'ON' if draft.get('rich_mode') else 'OFF'}""",
         reply_markup=published_menu(),
     )
     await callback.answer("Published ✅")
@@ -1007,22 +1095,26 @@ Colors: blue, green, red"""
             return
 
         if waiting_for == "inline_buttons":
-            field = "inline_button_rows"
-            label = "Inline buttons"
+            field = "button_rows"
+            button_type = "Inline buttons"
         else:
             field = "caption_button_rows"
-            label = "Caption buttons"
-
-        await save_draft(user_id, {field: button_rows})
+            button_type = "Caption buttons"
 
         row_count = len(button_rows)
         button_count = sum(len(row) for row in button_rows)
 
+        await save_draft(user_id, {field: button_rows})
+
+        updated_draft = await get_draft(user_id)
+
         await message.answer(
-            f"""✅ {label} added: {button_count} buttons in {row_count} rows.
+            f"""✅ <b>{button_type} saved</b>
+
+{button_count} buttons in {row_count} rows.
 
 Tap Preview to check the layout.""",
-            reply_markup=builder_menu(await get_draft(user_id)),
+            reply_markup=builder_menu(updated_draft),
         )
         return
 

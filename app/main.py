@@ -4,6 +4,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.types import BotCommand
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
@@ -24,6 +25,13 @@ logger = logging.getLogger("post-creator-bot")
 
 async def on_startup(bot: Bot):
     await db.init_indexes()
+
+    await bot.set_my_commands(
+        [
+            BotCommand(command="start", description="Open the main menu"),
+            BotCommand(command="help", description="How to use the bot"),
+        ]
+    )
 
     if RENDER_EXTERNAL_URL:
         webhook_url = RENDER_EXTERNAL_URL + WEBHOOK_PATH

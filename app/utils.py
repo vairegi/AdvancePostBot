@@ -97,18 +97,10 @@ def build_caption(draft):
     return NEWLINE.join(part for part in parts if part)
 
 
-def build_rich_html(draft):
+def build_caption_button_html(caption_button_rows):
     parts = []
 
-    if draft.get("text"):
-        parts.append(draft["text"])
-
-    if draft.get("table"):
-        rich_table = render_rich_table(draft["table"])
-        if rich_table:
-            parts.append(rich_table)
-
-    for row in draft.get("caption_button_rows") or []:
+    for row in caption_button_rows or []:
         if not row:
             continue
 
@@ -130,6 +122,27 @@ def build_rich_html(draft):
         parts.append(
             "<tg-button-row>" + "".join(button_tags) + "</tg-button-row>"
         )
+
+    return NEWLINE.join(part for part in parts if part)
+
+
+def build_rich_html(draft):
+    parts = []
+
+    if draft.get("text"):
+        parts.append(draft["text"])
+
+    if draft.get("table"):
+        rich_table = render_rich_table(draft["table"])
+        if rich_table:
+            parts.append(rich_table)
+
+    caption_buttons = build_caption_button_html(
+        draft.get("caption_button_rows")
+    )
+
+    if caption_buttons:
+        parts.append(caption_buttons)
 
     return NEWLINE.join(part for part in parts if part)
 
@@ -207,8 +220,7 @@ def parse_button_rows(raw_text):
 
 
 def convert_old_buttons_to_rows(draft):
-    """Convert old flat button data to the new row-based format."""
-    if draft.get("inline_button_rows") or draft.get("caption_button_rows"):
+    if draft.get("button_rows") or draft.get("caption_button_rows"):
         return draft
 
     old_buttons = draft.get("buttons") or []
@@ -227,13 +239,13 @@ def convert_old_buttons_to_rows(draft):
                 {
                     "text": button.get("text", "Button"),
                     "url": button.get("url", "https://t.me/telegram"),
-                    "color": normalize_color(button.get("color", "blue")),
+                    "color": normalize_color(button.get("style", "blue")),
                 }
             )
 
         button_rows.append(row)
 
-    draft["inline_button_rows"] = button_rows
+    draft["button_rows"] = button_rows
     return draft
 
 
