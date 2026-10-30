@@ -15,6 +15,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app import db
+from app.utils import NEWLINE
 from app.keyboards import (
     main_menu,
     draft_choice_menu,
@@ -139,7 +140,6 @@ Every change you make will update the preview automatically.
 💡 <b>Publish Now</b> — Publish the post to your channel"""
 
 
-
 async def refresh_builder(bot: Bot, chat_id: int, user_id: int):
     draft = await get_draft(user_id)
     draft = convert_old_buttons_to_rows(draft)
@@ -154,53 +154,56 @@ async def refresh_builder(bot: Bot, chat_id: int, user_id: int):
         if draft.get("media_file_id"):
             media_type = draft.get("media_type")
             file_id = draft["media_file_id"]
+            media_caption = caption or "No caption added yet."
 
             if media_type == "photo":
                 preview = await bot.send_photo(
                     chat_id,
                     file_id,
-                    caption=caption or "No caption added yet.",
+                    caption=media_caption,
                     reply_markup=keyboard,
                 )
             elif media_type == "video":
                 preview = await bot.send_video(
                     chat_id,
                     file_id,
-                    caption=caption or "No caption added yet.",
+                    caption=media_caption,
                     reply_markup=keyboard,
                 )
             elif media_type == "audio":
                 preview = await bot.send_audio(
                     chat_id,
                     file_id,
-                    caption=caption or "No caption added yet.",
+                    caption=media_caption,
                     reply_markup=keyboard,
                 )
             elif media_type == "document":
                 preview = await bot.send_document(
                     chat_id,
                     file_id,
-                    caption=caption or "No caption added yet.",
+                    caption=media_caption,
                     reply_markup=keyboard,
                 )
             elif media_type == "animation":
                 preview = await bot.send_animation(
                     chat_id,
                     file_id,
-                    caption=caption or "No caption added yet.",
+                    caption=media_caption,
                     reply_markup=keyboard,
                 )
             else:
                 preview = await bot.send_message(
                     chat_id,
-                    caption or "No caption added yet.",
+                    media_caption,
                     reply_markup=keyboard,
                 )
         else:
-            preview_text = "👁 <b>LIVE PREVIEW</b>
-
-"
-            preview_text += caption or "<i>No caption added yet.</i>"
+            preview_text = (
+                "👁 <b>LIVE PREVIEW</b>"
+                + NEWLINE
+                + NEWLINE
+                + (caption or "<i>No caption added yet.</i>")
+            )
 
             preview = await bot.send_message(
                 chat_id,
@@ -224,7 +227,7 @@ async def refresh_builder(bot: Bot, chat_id: int, user_id: int):
     except TelegramBadRequest as error:
         await bot.send_message(
             chat_id,
-            f"⚠️ Preview error: {error.message}",
+            "⚠️ Preview error: " + error.message,
         )
 
 
@@ -1074,16 +1077,16 @@ async def input_handler(message: Message, bot: Bot):
         return
 
     if waiting_for == "channel_add":
-        chat_id_channel, title = await resolve_channel(bot, message)
+        channel_id, title = await resolve_channel(bot, message)
 
-        if not chat_id_channel:
+        if not channel_id:
             await message.reply(
                 "❌ Send <code>@channelusername</code> or forward a message from the channel."
             )
             return
 
         try:
-            member = await bot.get_chat_member(chat_id_channel, bot.id)
+            member = await bot.get_chat_member(channel_id, bot.id)
 
             if member.status not in ("administrator", "creator"):
                 raise ValueError("Bot is not an administrator")
@@ -1099,11 +1102,11 @@ Add the bot as an administrator first, then try again."""
             return
 
         await db.channels.update_one(
-            {"user_id": user_id, "chat_id": chat_id_channel},
+            {"user_id": user_id, "chat_id": channel_id},
             {
                 "$set": {
                     "user_id": user_id,
-                    "chat_id": chat_id_channel,
+                    "chat_id": channel_id,
                     "title": title,
                 }
             },
@@ -1189,9 +1192,7 @@ Each line is one row.
 
         await bot.send_message(
             chat_id,
-            f"✅ <b>{button_type} saved</b>
-
-{button_count} buttons in {row_count} rows.",
+            f"✅ <b>{button_type} saved</b>{NEWLINE}{NEWLINE}{button_count} buttons in {row_count} rows.",
         )
         return
 
