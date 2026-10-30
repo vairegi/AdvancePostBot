@@ -135,7 +135,26 @@ async def refresh_builder(bot: Bot, chat_id: int, user_id: int):
     keyboard = post_keyboard(draft)
 
     try:
-        if draft.get("media_file_id"):
+        if draft.get("rich_mode") and not draft.get("media_file_id"):
+            rich_html = build_rich_html(draft)
+
+            if rich_html:
+                preview = await bot.send_rich_message(
+                    chat_id,
+                    rich_message=InputRichMessage(html=rich_html),
+                    reply_markup=keyboard,
+                )
+            else:
+                preview = await bot.send_message(
+                    chat_id,
+                    "👁 <b>LIVE PREVIEW</b>"
+                    + NEWLINE
+                    + NEWLINE
+                    + "<i>No caption added yet.</i>",
+                    reply_markup=keyboard,
+                )
+
+        elif draft.get("media_file_id"):
             media_type = draft.get("media_type")
             file_id = draft["media_file_id"]
             media_caption = caption or "No caption added yet."
@@ -181,6 +200,7 @@ async def refresh_builder(bot: Bot, chat_id: int, user_id: int):
                     media_caption,
                     reply_markup=keyboard,
                 )
+
         else:
             preview_text = (
                 "👁 <b>LIVE PREVIEW</b>"
@@ -279,8 +299,10 @@ Telegram HTML is supported:
 ━━━━━━━━━━━━━━━━━━━━
 
 <b>Inline Buttons</b> appear below the post.
+They do not support custom colors.
 
 <b>Caption Buttons</b> appear inside a Rich Message.
+They support colors: blue, green, red.
 
 Each line creates one button row.
 
@@ -292,11 +314,6 @@ Each line creates one button row.
 
 💡 No color means a normal transparent button:
 <code>Visit Website | https://example.com</code>
-
-Colors:
-<code>blue</code>
-<code>green</code>
-<code>red</code>
 
 ━━━━━━━━━━━━━━━━━━━━
 <b>4. Add Table</b>
@@ -637,6 +654,7 @@ async def buttons_menu_callback(callback: CallbackQuery):
 Choose the type of buttons you want to add.
 
 💡 <b>Inline Buttons</b> appear below the post.
+They do not support custom colors.
 
 💡 <b>Caption Buttons</b> appear inside a Rich Message and support colors.""",
         reply_markup=buttons_menu(),
@@ -656,15 +674,12 @@ async def inline_buttons_callback(callback: CallbackQuery):
 Each line creates one button row.
 
 💡 One button in a row:
-<code>Join Channel | https://t.me/telegram | green</code>
+<code>Join Channel | https://t.me/telegram</code>
 
 💡 Two buttons in one row:
-<code>Visit Website | https://example.com | blue || Help | https://example.com | red</code>
+<code>Visit Website | https://example.com || Help | https://example.com</code>
 
-💡 No color means a normal transparent button:
-<code>Visit Website | https://example.com</code>
-
-💡 Colors: <code>blue</code>, <code>green</code>, <code>red</code>
+⚠️ Inline buttons do not support custom colors.
 
 Send your buttons now.""",
         reply_markup=back_to_buttons_menu(),
@@ -949,30 +964,40 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
     draft = await get_draft(callback.from_user.id)
     draft = convert_old_buttons_to_rows(draft)
 
+    sent_message = None
+    rich_failed = False
+
     try:
         if draft.get("rich_mode"):
             rich_html = build_rich_html(draft)
-            sent_message = await bot.send_rich_message(
-                draft["channel_id"],
-                rich_message=InputRichMessage(html=rich_html),
-                reply_markup=post_keyboard(draft),
-                disable_notification=draft.get("silent", False),
-            )
-        elif draft.get("media_file_id"):
-            sent_message = await send_media_message(
-                bot,
-                draft["channel_id"],
-                draft,
-                build_caption(draft),
-                post_keyboard(draft),
-            )
-        else:
-            sent_message = await bot.send_message(
-                draft["channel_id"],
-                build_caption(draft),
-                reply_markup=post_keyboard(draft),
-                disable_notification=draft.get("silent", False),
-            )
+
+            if rich_html:
+                try:
+                    sent_message = await bot.send_rich_message(
+                        draft["channel_id"],
+                        rich_message=InputRichMessage(html=rich_html),
+                        reply_markup=post_keyboard(draft),
+                        disable_notification=draft.get("silent", False),
+                    )
+                except Exception:
+                    rich_failed = True
+
+        if sent_message is None:
+            if draft.get("media_file_id"):
+                sent_message = await send_media_message(
+                    bot,
+                    draft["channel_id"],
+                    draft,
+                    build_caption(draft),
+                    post_keyboard(draft),
+                )
+            else:
+                sent_message = await bot.send_message(
+                    draft["channel_id"],
+                    build_caption(draft),
+                    reply_markup=post_keyboard(draft),
+                    disable_notification=draft.get("silent", False),
+                )
     except Exception as error:
         await callback.answer(
             f"Publish failed: {str(error)[:150]}",
@@ -997,6 +1022,7 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
     )
 
     channel_title = draft.get("channel_title") or str(draft["channel_id"])
+    rich_status = "ON" if draft.get("rich_mode") and not rich_failed else "OFF"
 
     await callback.message.edit_text(
         f"""━━━━━━━━━━━━━━━━━━━━
@@ -1005,7 +1031,7 @@ async def publish_confirm_callback(callback: CallbackQuery, bot: Bot):
 
 📺 <b>Channel:</b> {esc(channel_title)}
 ⏱ <b>Auto Delete:</b> {esc(human_time(draft.get('auto_delete_seconds')))}
-✨ <b>Rich Mode:</b> {'ON' if draft.get('rich_mode') else 'OFF'}""",
+✨ <b>Rich Mode:</b> {rich_status}""",
         reply_markup=published_menu(),
     )
     await callback.answer("Published ✅")
